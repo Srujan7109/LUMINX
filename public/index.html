@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Classroom - Smart India Hackathon</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .join-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .join-form input, .join-form select, .join-form button {
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .join-form button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .join-form button:hover {
+            background: #45a049;
+        }
+        
+        .classroom {
+            display: none;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            height: calc(100vh - 200px);
+        }
+        
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .slide-area {
+            height: 60%;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+            position: relative;
+        }
+        
+        .slide-content {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .slide-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .slide-info {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .teacher-controls {
+            display: none;
+            gap: 10px;
+        }
+        
+        .teacher-controls button, .audio-controls button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .teacher-controls .prev-btn {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .teacher-controls .next-btn {
+            background: #4ecdc4;
+            color: white;
+        }
+        
+        .upload-btn {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .audio-controls {
+            margin-top: 10px;
+        }
+        
+        .start-audio-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .stop-audio-btn {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .participants {
+            margin-bottom: 20px;
+        }
+        
+        .participants h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .participant {
+            padding: 8px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .participant.teacher {
+            background: #e8f5e8;
+            font-weight: bold;
+        }
+        
+        .chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            max-height: 300px;
+            background: white;
+            margin-bottom: 10px;
+        }
+        
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .message.teacher {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+        
+        .message.student {
+            background: #f3e5f5;
+            border-left: 3px solid #9c27b0;
+        }
+        
+        .message-header {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 4px;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        
+        .chat-input button {
+            padding: 10px 15px;
+            background: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status.disconnected {
+            background: #f44336;
+            color: white;
+        }
+        
+        .audio-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .audio-status.streaming {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        
+        .audio-status.stopped {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+        
+        @media (max-width: 768px) {
+            .classroom {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Connection Status -->
+        <div id="status" class="status disconnected">Disconnected</div>
+        
+        <!-- Join Form -->
+        <div id="joinForm" class="header">
+            <h1>🎓 Virtual Classroom for Rural Areas</h1>
+            <p style="margin: 10px 0; color: #666;">Smart India Hackathon Prototype</p>
+            <div class="join-form">
+                <input type="text" id="nameInput" placeholder="Enter your name" required>
+                <select id="roleSelect">
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                </select>
+                <button onclick="joinClassroom()">Join Classroom</button>
+            </div>
+        </div>
+        
+        <!-- Main Classroom Interface -->
+        <div id="classroom" class="classroom">
+            <!-- Main Content Area -->
+            <div class="main-content">
+                <div class="slide-area" id="slideArea">
+                    <div id="noSlideMessage">
+                        <p style="color: #999; font-size: 18px;">📋 Waiting for teacher to upload slides...</p>
+                    </div>
+                    <img id="currentSlide" class="slide-content hidden" alt="Current Slide">
+                </div>
+                
+                <div class="slide-controls">
+                    <div class="slide-info">
+                        <span id="slideInfo">Slide 0 of 0</span>
+                    </div>
+                    
+                    <!-- Teacher Controls -->
+                    <div id="teacherControls" class="teacher-controls">
+                        <input type="file" id="slideUpload" accept="image/*,.pdf" style="display: none;">
+                        <button class="upload-btn" onclick="document.getElementById('slideUpload').click()">
+                            📤 Upload Slide
+                        </button>
+                        <button class="prev-btn" onclick="previousSlide()">⬅️ Previous</button>
+                        <button class="next-btn" onclick="nextSlide()">➡️ Next</button>
+                    </div>
+                </div>
+                
+                <!-- Audio Controls -->
+                <div class="audio-controls">
+                    <button id="startAudioBtn" class="start-audio-btn" onclick="startAudio()">
+                        🎤 Start Audio
+                    </button>
+                    <button id="stopAudioBtn" class="stop-audio-btn hidden" onclick="stopAudio()">
+                        🔇 Stop Audio
+                    </button>
+                    <div id="audioStatus" class="audio-status stopped">
+                        Audio: Stopped
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Participants -->
+                <div class="participants">
+                    <h3>👥 Participants (<span id="participantCount">0</span>)</h3>
+                    <div id="participantsList"></div>
+                </div>
+                
+                <!-- Chat -->
+                <div class="chat">
+                    <h3>💬 Chat</h3>
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chatInput" placeholder="Type a message..." 
+                               onkeypress="if(event.key==='Enter') sendMessage()">
+                        <button onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let socket = null;
+        let currentUser = null;
+        let currentSlideNumber = 0;
+        let totalSlides = 0;
+        let isAudioStreaming = false;
+        let localStream = null;
+        let peerConnections = new Map(); // Store multiple peer connections for students
+        
+        // WebRTC configuration for low-bandwidth audio
+        const rtcConfiguration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+        
+        // Audio constraints optimized for low bandwidth
+        const audioConstraints = {
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: 16000, // Lower sample rate for bandwidth efficiency
+                sampleSize: 16,
+                channelCount: 1 // Mono audio
+            },
+            video: false
+        };
+        
+        // Initialize connection when page loads
+        window.onload = function() {
+            console.log('Page loaded, initializing socket connection...');
+            initializeSocket();
+        };
+        
+        function initializeSocket() {
+            // Connect to WebSocket server
+            socket = io();
+            
+            // Connection event handlers
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                updateStatus('connected', 'Connected');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                updateStatus('disconnected', 'Disconnected');
+            });
+            
+            // Classroom event handlers
+            socket.on('classroom-state', (state) => {
+                console.log('Received classroom state:', state);
+                updateClassroomState(state);
+            });
+            
+            socket.on('participants-updated', (participants) => {
+                updateParticipantsList(participants);
+            });
+            
+            socket.on('slide-changed', (data) => {
+                console.log('Slide changed:', data);
+                currentSlideNumber = data.slideNumber;
+                updateSlideInfo();
+                showNotification(`Teacher changed to slide ${data.slideNumber + 1}`);
+            });
+            
+            socket.on('slide-uploaded', (data) => {
+                console.log('New slide uploaded');
+                displaySlide(data.slideData);
+                currentSlideNumber = data.currentSlide;
+                totalSlides = data.totalSlides;
+                updateSlideInfo();
+                showNotification('Teacher uploaded a new slide');
+            });
+            
+            socket.on('new-message', (message) => {
+                displayMessage(message);
+            });
+            
+            socket.on('teacher-left', () => {
+                showNotification('Teacher has left the classroom', 'warning');
+            });
+            
+            // WebRTC signaling handlers
+            socket.on('webrtc-offer', handleWebRTCOffer);
+            socket.on('webrtc-answer', handleWebRTCAnswer);
+            socket.on('webrtc-ice-candidate', handleWebRTCIceCandidate);
+        }
+        
+        function joinClassroom() {
+            const name = document.getElementById('nameInput').value.trim();
+            const role = document.getElementById('roleSelect').value;
+            
+            if (!name) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            currentUser = { name, role };
+            
+            // Send join request to server
+            socket.emit('join-classroom', { name, role });
+            
+            // Show classroom interface
+            document.getElementById('joinForm').style.display = 'none';
+            document.getElementById('classroom').style.display = 'grid';
+            
+            // Show teacher controls if user is teacher
+            if (role === 'teacher') {
+                document.getElementById('teacherControls').style.display = 'flex';
+            }
+            
+            console.log(`Joined as ${role}: ${name}`);
+        }
+        
+        function updateStatus(status, text) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = text;
+        }
+        
+        function updateClassroomState(state) {
+            currentSlideNumber = state.currentSlide;
+            totalSlides = state.totalSlides;
+            
+            if (state.slideData) {
+                displaySlide(state.slideData);
+            }
+            
+            updateSlideInfo();
+            updateParticipantsList(state.participants);
+        }
+        
+        function updateParticipantsList(participants) {
+            const listEl = document.getElementById('participantsList');
+            const countEl = document.getElementById('participantCount');
+            
+            listEl.innerHTML = '';
+            countEl.textContent = participants.length;
+            
+            participants.forEach(participant => {
+                const div = document.createElement('div');
+                div.className = `participant ${participant.role}`;
+                div.textContent = `${participant.role === 'teacher' ? '👨‍🏫' : '👨‍🎓'} ${participant.name}`;
+                listEl.appendChild(div);
+            });
+        }
+        
+        function updateSlideInfo() {
+            document.getElementById('slideInfo').textContent = 
+                `Slide ${currentSlideNumber + 1} of ${totalSlides || 1}`;
+        }
+        
+        function displaySlide(slideData) {
+            const slideImg = document.getElementById('currentSlide');
+            const noSlideMsg = document.getElementById('noSlideMessage');
+            
+            slideImg.src = slideData;
+            slideImg.classList.remove('hidden');
+            noSlideMsg.style.display = 'none';
+        }
+        
+        // Teacher slide navigation
+        function previousSlide() {
+            if (currentUser.role === 'teacher' && currentSlideNumber > 0) {
+                currentSlideNumber--;
+                socket.emit('change-slide', { slideNumber: currentSlideNumber });
+                updateSlideInfo();
+            }
+        }
+        
+        function nextSlide() {
+            if (currentUser.role === 'teacher' && currentSlideNumber < totalSlides - 1) {
+                currentSlideNumber++;
+                socket.emit('change-slide', { slideNumber: currentSlideNumber });
+                updateSlideInfo();
+            }
+        }
+        
+        // Handle slide upload
+        document.addEventListener('DOMContentLoaded', function() {
+            const slideUpload = document.getElementById('slideUpload');
+            if (slideUpload) {
+                slideUpload.addEventListener('change', function(event) {
+                    const file = event.target.files[0];
+                    if (file && currentUser.role === 'teacher') {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const slideData = e.target.result;
+                            
+                            // Update local state
+                            totalSlides = 1; // For now, single slide support
+                            currentSlideNumber = 0;
+                            
+                            // Send to server
+                            socket.emit('upload-slide', {
+                                slideData: slideData,
+                                totalSlides: totalSlides,
+                                currentSlide: currentSlideNumber
+                            });
+                            
+                            // Display locally
+                            displaySlide(slideData);
+                            updateSlideInfo();
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+        });
+        
+        // Chat functionality
+        function sendMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const message = chatInput.value.trim();
+            
+            if (message && socket) {
+                socket.emit('send-message', { text: message });
+                chatInput.value = '';
+            }
+        }
+        
+        function displayMessage(message) {
+            const messagesEl = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${message.role}`;
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">${message.sender} (${message.role})</div>
+                <div>${message.text}</div>
+            `;
+            
+            messagesEl.appendChild(messageDiv);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        function showNotification(text, type = 'info') {
+            // Simple notification system
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 70px;
+                right: 20px;
+                padding: 10px 15px;
+                border-radius: 6px;
+                color: white;
+                font-size: 14px;
+                z-index: 1000;
+                background: ${type === 'warning' ? '#ff9800' : '#4CAF50'};
+            `;
+            notification.textContent = text;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+        
+        // =============================================================================
+        // WebRTC Audio Streaming (Low-bandwidth with Opus codec)
+        // =============================================================================
+        
+        async function startAudio() {
+            if (currentUser.role !== 'teacher') {
+                alert('Only teacher can start audio streaming');
+                return;
+            }
+            
+            try {
+                // Get user media with optimized audio settings
+                localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+                
+                console.log('Got local audio stream');
+                
+                // Update UI
+                document.getElementById('startAudioBtn').classList.add('hidden');
+                document.getElementById('stopAudioBtn').classList.remove('hidden');
+                updateAudioStatus('streaming', 'Audio: Streaming 🔴');
+                
+                isAudioStreaming = true;
+                
+                // Create peer connections for all current students
+                createPeerConnectionsForStudents();
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Could not access microphone. Please check permissions.');
+                updateAudioStatus('stopped', 'Audio: Error accessing microphone');
+            }
+        }
+        
+        function stopAudio() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            
+            // Close all peer connections
+            peerConnections.forEach(pc => pc.close());
+            peerConnections.clear();
+            
+            // Update UI
+            document.getElementById('startAudioBtn').classList.remove('hidden');
+            document.getElementById('stopAudioBtn').classList.add('hidden');
+            updateAudioStatus('stopped', 'Audio: Stopped');
+            
+            isAudioStreaming = false;
+            
+            console.log('Audio streaming stopped');
+        }
+        
+        function updateAudioStatus(status, text) {
+            const statusEl = document.getElementById('audioStatus');
+            statusEl.className = `audio-status ${status}`;
+            statusEl.textContent = text;
+        }
+        
+        async function createPeerConnectionsForStudents() {
+            // Create offers for all connected students
+            const participants = Array.from(document.querySelectorAll('.participant:not(.teacher)'));
+            
+            // For simplicity, we'll broadcast the offer to all students
+            // In a real app, you'd create individual connections
+            const peerConnection = new RTCPeerConnection(rtcConfiguration);
+            
+            // Add local audio stream to peer connection
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+            
+            // Handle ICE candidates
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('webrtc-ice-candidate', {
+                        candidate: event.candidate
+                    });
+                }
+            };
+            
+            // Create and send offer
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
+            socket.emit('webrtc-offer', { offer: offer });
+            
+            // Store the peer connection
+            peerConnections.set('broadcast', peerConnection);
+            
+            console.log('Created WebRTC offer for audio streaming');
+        }
+        
+        // Handle incoming WebRTC offer (students receive this)
+        async function handleWebRTCOffer(data) {
+            if (currentUser.role === 'student') {
+                console.log('Received WebRTC offer from teacher');
+                
+                const peerConnection = new RTCPeerConnection(rtcConfiguration);
+                
+                // Handle incoming audio stream
+                peerConnection.ontrack = (event) => {
+                    console.log('Received remote audio stream');
+                    const remoteAudio = new Audio();
+                    remoteAudio.srcObject = event.streams[0];
+                    remoteAudio.play();
+                    
+                    updateAudioStatus('streaming', 'Audio: Receiving from teacher 🔊');
+                };
+                
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('webrtc-ice-candidate', {
+                            candidate: event.candidate,
+                            targetId: data.senderId
+                        });
+                    }
+                };
+                
+                // Set remote description and create answer
+                await peerConnection.setRemoteDescription(data.offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                
+                // Send answer back to teacher
+                socket.emit('webrtc-answer', {
+                    answer: answer,
+                    targetId: data.senderId
+                });
+                
+                // Store the peer connection
+                peerConnections.set(data.senderId, peerConnection);
+            }
+        }
+        
+        // Handle WebRTC answer (teacher receives this)
+        async function handleWebRTCAnswer(data) {
+            if (currentUser.role === 'teacher') {
+                console.log('Received WebRTC answer from student');
+                
+                const peerConnection = peerConnections.get('broadcast');
+                if (peerConnection) {
+                    await peerConnection.setRemoteDescription(data.answer);
+                }
+            }
+        }
+        
+        // Handle ICE candidates
+        async function handleWebRTCIceCandidate(data) {
+            console.log('Received ICE candidate');
+            
+            let peerConnection;
+            if (currentUser.role === 'teacher') {
+                peerConnection = peerConnections.get('broadcast');
+            } else {
+                peerConnection = peerConnections.get(data.senderId);
+            }
+            
+            if (peerConnection && data.candidate) {
+                try {
+                    await peerConnection.addIceCandidate(data.candidate);
+                } catch (error) {
+                    console.error('Error adding ICE candidate:', error);
+                }
+            }
+        }
+        
+        // =============================================================================
+        // Utility Functions
+        // =============================================================================
+        
+        function showConnectedMessage() {
+            const messages = [
+                "🎉 Connected! You can now join the classroom.",
+                "✨ Connection established successfully!",
+                "🚀 Ready to start learning!"
+            ];
+            
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            showNotification(randomMessage);
+        }
+        
+        // Auto-connect when socket is ready
+        socket?.on('connect', showConnectedMessage);
+    </script>
+</body>
+</html>
