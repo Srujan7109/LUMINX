@@ -575,29 +575,73 @@ async function convertPdfToImages(pdfPath, outDir, io, classroomId) {
 }
 
 
-// Enhanced PPTX to PDF conversion
-// function convertPptToPdf(input, output) {
-//   return new Promise((resolve, reject) => {
-//     const timeout = setTimeout(() => {
-//       reject(new Error('LibreOffice conversion timeout'));
-//     }, 30000); // 30 second timeout
+function convertPptToPdf(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('LibreOffice conversion timeout'));
+    }, 30000); // 30 second timeout
 
-//     exec(
-//       `soffice --headless --convert-to pdf "${input}" --outdir "${path.dirname(output)}"`,
-//       (err, stdout, stderr) => {
-//         clearTimeout(timeout);
-//         if (err) {
-//           console.error('LibreOffice error:', err);
-//           console.error('stderr:', stderr);
-//           reject(new Error(`PPTX conversion failed: ${err.message}`));
-//         } else {
-//           console.log('LibreOffice output:', stdout);
-//           resolve();
-//         }
-//       }
-//     );
-//   });
-// }
+    // Extract directory from outputPath for LibreOffice
+    const outputDir = path.dirname(outputPath);
+    
+    // Ensure output directory exists
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+    
+    console.log(`Converting PPTX: ${inputPath} -> ${outputPath}`);
+    
+    const command = `soffice --headless --convert-to pdf --outdir "${outputDir}" "${inputPath}"`;
+    console.log('Executing LibreOffice command:', command);
+    
+    exec(command, (err, stdout, stderr) => {
+      clearTimeout(timeout);
+      
+      if (err) {
+        console.error('LibreOffice error:', err);
+        console.error('LibreOffice stderr:', stderr);
+        reject(new Error(`PPTX conversion failed: ${err.message}`));
+        return;
+      }
+      
+      console.log('LibreOffice stdout:', stdout);
+      
+      // LibreOffice creates PDF with same base name as input file
+      const inputBaseName = path.basename(inputPath, path.extname(inputPath));
+      const generatedPdfPath = path.join(outputDir, inputBaseName + '.pdf');
+      
+      console.log('Looking for generated PDF at:', generatedPdfPath);
+      
+      // Wait a moment for file system to update
+      setTimeout(() => {
+        if (fs.existsSync(generatedPdfPath)) {
+          // Move to desired output path if different
+          if (generatedPdfPath !== outputPath) {
+            try {
+              fs.renameSync(generatedPdfPath, outputPath);
+              console.log('✅ PDF successfully renamed to:', outputPath);
+            } catch (renameErr) {
+              console.error('Failed to rename PDF:', renameErr);
+              reject(new Error(`Failed to rename PDF: ${renameErr.message}`));
+              return;
+            }
+          }
+          resolve();
+        } else {
+          // List all files in output directory for debugging
+          console.error('Generated PDF not found. Files in output directory:');
+          try {
+            const files = fs.readdirSync(outputDir);
+            console.error('Files:', files);
+          } catch (listErr) {
+            console.error('Could not list directory:', listErr);
+          }
+          reject(new Error(`PDF not generated at expected location: ${generatedPdfPath}`));
+        }
+      }, 1000); // Wait 1 second for file system
+    });
+  });
+}
 
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
