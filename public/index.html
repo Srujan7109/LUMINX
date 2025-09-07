@@ -1,953 +1,487 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual Classroom - Smart India Hackathon</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://unpkg.com/yjs@13.6.10/dist/yjs.js"></script>
+    <script src="https://unpkg.com/idb@7.1.1/build/iife/index-min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-        
-        .join-form {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .join-form input, .join-form select, .join-form button {
-            padding: 12px;
-            border: 2px solid #e1e5e9;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        
-        .join-form button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        
-        .join-form button:hover {
-            background: #45a049;
-        }
-        
-        .classroom {
-            display: none;
-            grid-template-columns: 2fr 1fr;
-            gap: 20px;
-            min-height: calc(100vh - 200px);
-        }
-        
-        .main-content {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .slide-area {
-            height: 400px;
-            border: 2px dashed #ddd;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            background: #f9f9f9;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .slide-content {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        
-        .slide-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .slide-info {
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .teacher-controls {
-            display: none;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .teacher-controls button, .audio-controls button {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 14px;
-        }
-        
-        .teacher-controls .prev-btn {
-            background: #ff6b6b;
-            color: white;
-        }
-        
-        .teacher-controls .prev-btn:hover {
-            background: #ff5252;
-        }
-        
-        .teacher-controls .next-btn {
-            background: #4ecdc4;
-            color: white;
-        }
-        
-        .teacher-controls .next-btn:hover {
-            background: #26c6da;
-        }
-        
-        .upload-btn {
-            background: #95a5a6;
-            color: white;
-        }
-        
-        .upload-btn:hover {
-            background: #7f8c8d;
-        }
-        
-        .audio-controls {
-            margin-top: 10px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .start-audio-btn {
-            background: #e74c3c;
-            color: white;
-        }
-        
-        .start-audio-btn:hover {
-            background: #c0392b;
-        }
-        
-        .stop-audio-btn {
-            background: #95a5a6;
-            color: white;
-        }
-        
-        .stop-audio-btn:hover {
-            background: #7f8c8d;
-        }
-        
-        .sidebar {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .participants {
-            margin-bottom: 20px;
-        }
-        
-        .participants h3 {
-            margin-bottom: 10px;
-            color: #555;
-        }
-        
-        .participant {
-            padding: 8px;
-            background: #f0f0f0;
-            border-radius: 6px;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-        
-        .participant.teacher {
-            background: #e8f5e8;
-            font-weight: bold;
-        }
-        
-        .chat {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .chat h3 {
-            margin-bottom: 10px;
-            color: #555;
-        }
-        
-        .chat-messages {
-            flex: 1;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            overflow-y: auto;
-            max-height: 300px;
-            background: white;
-            margin-bottom: 10px;
-        }
-        
-        .message {
-            margin-bottom: 10px;
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        
-        .message.teacher {
-            background: #e3f2fd;
-            border-left: 3px solid #2196f3;
-        }
-        
-        .message.student {
-            background: #f3e5f5;
-            border-left: 3px solid #9c27b0;
-        }
-        
-        .message-header {
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 4px;
-        }
-        
-        .chat-input {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .chat-input input {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-        }
-        
-        .chat-input button {
-            padding: 10px 15px;
-            background: #2196f3;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-        
-        .chat-input button:hover {
-            background: #1976d2;
-        }
-        
-        .status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 15px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: bold;
-            z-index: 1000;
-        }
-        
-        .status.connected {
-            background: #4CAF50;
-            color: white;
-        }
-        
-        .status.disconnected {
-            background: #f44336;
-            color: white;
-        }
-        
-        .audio-status {
-            padding: 10px;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 14px;
-            min-width: 150px;
-        }
-        
-        .audio-status.streaming {
-            background: #c8e6c9;
-            color: #2e7d32;
-        }
-        
-        .audio-status.stopped {
-            background: #ffcdd2;
-            color: #c62828;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .notification {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            padding: 10px 15px;
-            border-radius: 6px;
-            color: white;
-            font-size: 14px;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .classroom {
-                grid-template-columns: 1fr;
-                gap: 10px;
-            }
-            
-            .container {
-                padding: 10px;
-            }
-            
-            .slide-area {
-                height: 250px;
-            }
-            
-            .join-form {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .slide-controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .teacher-controls {
-                flex-direction: column;
-            }
-            
-            .audio-controls {
-                flex-direction: column;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Connection Status -->
-        <div id="status" class="status disconnected">Disconnected</div>
-        
-        <!-- Join Form -->
-        <div id="joinForm" class="header">
-            <h1>🎓 Virtual Classroom for Rural Areas</h1>
-            <p style="margin: 10px 0; color: #666;">Smart India Hackathon Prototype</p>
-            <div class="join-form">
-                <input type="text" id="nameInput" placeholder="Enter your name" required>
-                <select id="roleSelect">
-                    <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
-                </select>
-                <button onclick="joinClassroom()">Join Classroom</button>
-            </div>
-        </div>
-        
-        <!-- Main Classroom Interface -->
-        <div id="classroom" class="classroom">
-            <!-- Main Content Area -->
-            <div class="main-content">
-                <div class="slide-area" id="slideArea">
-                    <div id="noSlideMessage">
-                        <p style="color: #999; font-size: 18px;">📋 Waiting for teacher to upload slides...</p>
-                    </div>
-                    <img id="currentSlide" class="slide-content hidden" alt="Current Slide" loading="lazy">
-                </div>
-                
-                <div class="slide-controls">
-                    <div class="slide-info">
-                        <span id="slideInfo">Slide 0 of 0</span>
-                    </div>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-                    <div id="teacherControls" class="teacher-controls">
-                        <!-- Hidden file input -->
-                        <input
-                            id="slideUpload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf,.pptx"
-                            style="display: none;"
-                            onchange="handleFileUpload(event)"
-                        />
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #333;
+      }
 
-                        <!-- Upload button triggers input click -->
-                        <button class="upload-btn" onclick="triggerFileUpload()">
-                            📤 Upload Slide
-                        </button>
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
 
-                        <!-- Navigation buttons -->
-                        <button class="prev-btn" onclick="previousSlide()">
-                            ⬅️ Previous
-                        </button>
-                        <button class="next-btn" onclick="nextSlide()">
-                            ➡️ Next
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Audio Controls -->
-                <div class="audio-controls">
-                    <button id="startAudioBtn" class="start-audio-btn" onclick="startAudio()">
-                        🎤 Start Audio
-                    </button>
-                    <button id="stopAudioBtn" class="stop-audio-btn hidden" onclick="stopAudio()">
-                        🔇 Stop Audio
-                    </button>
-                    <div id="audioStatus" class="audio-status stopped">
-                        Audio: Stopped
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Sidebar -->
-            <div class="sidebar">
-                <!-- Participants -->
-                <div class="participants">
-                    <h3>👥 Participants (<span id="participantCount">0</span>)</h3>
-                    <div id="participantsList"></div>
-                </div>
-                
-                <!-- Chat -->
-                <div class="chat">
-                    <h3>💬 Chat</h3>
-                    <div id="chatMessages" class="chat-messages"></div>
-                    <div class="chat-input">
-                        <input type="text" id="chatInput" placeholder="Type a message..." 
-                               onkeypress="if(event.key==='Enter') sendMessage()">
-                        <button onclick="sendMessage()">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-<script>
-   // Global variables
-let socket = null;
-let currentUser = null;
-let currentSlideNumber = 0;
-let totalSlides = 0;
-let slides = [];
-let isAudioStreaming = false;
-let localStream = null;
-let peerConnections = new Map(); // Store multiple peer connections for students
+      .header {
+        background: rgba(255, 255, 255, 0.95);
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
 
-// WebRTC configuration for low-bandwidth audio
-const rtcConfiguration = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-    ]
-};
+      .join-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
 
-// Audio constraints optimized for low bandwidth
-const audioConstraints = {
-    audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 16000, // Lower sample rate for bandwidth efficiency
-        sampleSize: 16,
-        channelCount: 1 // Mono audio
-    },
-    video: false
-};
+      .join-form input,
+      .join-form select,
+      .join-form button {
+        padding: 12px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 16px;
+      }
 
-// Initialize connection when page loads
-window.onload = function() {
-    console.log('Page loaded, initializing socket connection...');
-    initializeSocket();
-    setupChatEnterKey();
-};
+      .join-form button {
+        background: #4caf50;
+        color: white;
+        border: none;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
 
-// Socket initialization
-function initializeSocket() {
-    socket = io();
+      .join-form button:hover {
+        background: #45a049;
+      }
 
-    socket.on('connect', () => {
-        updateStatus('connected', 'Connected');
-        showConnectedMessage();
-    });
+      .classroom {
+        display: none;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+        min-height: calc(100vh - 200px);
+      }
 
-    socket.on('disconnect', () => {
-        updateStatus('disconnected', 'Disconnected');
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-            localStream = null;
+      .main-content {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .slide-area {
+        height: 400px;
+        border: 2px dashed #ddd;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        background: #f9f9f9;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .slide-content {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+
+      .slide-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .slide-info {
+        font-size: 14px;
+        color: #666;
+      }
+
+      .teacher-controls {
+        display: none;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .teacher-controls button,
+      .audio-controls button {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 14px;
+      }
+
+      .teacher-controls .prev-btn {
+        background: #ff6b6b;
+        color: white;
+      }
+
+      .teacher-controls .prev-btn:hover {
+        background: #ff5252;
+      }
+
+      .teacher-controls .next-btn {
+        background: #4ecdc4;
+        color: white;
+      }
+
+      .teacher-controls .next-btn:hover {
+        background: #26c6da;
+      }
+
+      .upload-btn {
+        background: #95a5a6;
+        color: white;
+      }
+
+      .upload-btn:hover {
+        background: #7f8c8d;
+      }
+
+      .audio-controls {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      /* Whiteboard Styles */
+      .whiteboard-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .whiteboard-canvas {
+        display: block;
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      .whiteboard-canvas.readonly {
+        cursor: default;
+      }
+
+      .whiteboard-controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        display: flex;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 8px;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+      }
+
+      .whiteboard-controls.hidden {
+        display: none;
+      }
+
+      .whiteboard-tool {
+        width: 32px;
+        height: 32px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        transition: all 0.2s;
+      }
+
+      .whiteboard-tool.active {
+        border-color: #2196f3;
+        background: #e3f2fd;
+      }
+
+      .whiteboard-tool:hover {
+        border-color: #2196f3;
+      }
+
+      .whiteboard-color-picker {
+        width: 32px;
+        height: 32px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #000;
+      }
+
+      .whiteboard-size-slider {
+        width: 60px;
+        height: 32px;
+      }
+
+      .whiteboard-toggle {
+        background: #4caf50;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.3s;
+      }
+
+      .whiteboard-toggle:hover {
+        background: #45a049;
+      }
+
+      .whiteboard-toggle.active {
+        background: #f44336;
+      }
+
+      .whiteboard-toggle.active:hover {
+        background: #d32f2f;
+      }
+
+      .whiteboard-status {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        z-index: 10;
+      }
+
+      .whiteboard-sync-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 4px;
+      }
+
+      .whiteboard-sync-indicator.synced {
+        background: #4caf50;
+      }
+
+      .whiteboard-sync-indicator.syncing {
+        background: #ff9800;
+        animation: pulse 1s infinite;
+      }
+
+      .whiteboard-sync-indicator.error {
+        background: #f44336;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
         }
-        peerConnections.forEach(pc => pc.close());
-        peerConnections.clear();
-    });
-
-    // Handle upload process events
-    socket.on('upload-started', (data) => {
-        console.log("Upload started:", data.filename);
-        showNotification(`Processing ${data.filename}...`);
-        // Clear previous slides
-        slides = [];
-        totalSlides = 0;
-        currentSlideNumber = 0;
-        
-        // Hide current slide and show loading message
-        document.getElementById('noSlideMessage').style.display = 'block';
-        document.getElementById('currentSlide').classList.add('hidden');
-    });
-
-    socket.on('total-slides', (data) => {
-        totalSlides = data.totalSlides;
-        slides = new Array(totalSlides).fill(null);  // Pre-allocate array with nulls
-        console.log(`📊 Expecting ${totalSlides} slides`);
-        showNotification(`Loading ${totalSlides} slides...`);
-    });
-
-    socket.on('slide-ready', (data) => {
-        console.log("✅ New slide ready:", data);
-        slides[data.index] = data.url;
-        
-        // Display first slide immediately when ready
-        if (data.index === 0) {
-            currentSlideNumber = 0;
-            displaySlide(data.url);
-            updateSlideInfo();
-            showNotification('First slide ready!');
+        50% {
+          opacity: 0.5;
         }
-    });
+      }
 
-    socket.on('upload-complete', (data) => {
-        console.log("✅ Upload complete:", data.totalSlides);
-        showNotification(`All ${data.totalSlides} slides loaded successfully!`);
-        
-        // Ensure first slide is displayed if not already
-        if (slides[0] && currentSlideNumber === 0) {
-            displaySlide(slides[0]);
-            updateSlideInfo();
-        }
-    });
+      .slide-area.whiteboard-mode {
+        background: white;
+        border: 2px solid #2196f3;
+      }
 
-    // Handle direct slide uploads (for compatibility)
-    socket.on('slide-uploaded', (data) => {
-        console.log('🔍 Frontend: Received slide-uploaded:', data);
-        
-        const slideData = data.slideData || [];
-        slides = slideData.map(slide => slide.url || slide);
-        totalSlides = slides.length;
-        currentSlideNumber = 0;
+      .slide-area.whiteboard-mode .slide-content {
+        display: none;
+      }
 
-        console.log('🔍 Frontend: Extracted slide URLs:', slides);
+      .slide-area.whiteboard-mode #noSlideMessage {
+        display: none;
+      }
 
-        if (slides.length > 0) {
-            displaySlide(slides[currentSlideNumber]);
-            updateSlideInfo();
-            showNotification('Teacher uploaded new slides');
-        }
-    });
+      .start-audio-btn {
+        background: #e74c3c;
+        color: white;
+      }
 
-    socket.on('slide-changed', (data) => {
-        currentSlideNumber = data.slideNumber;
-        if (slides[currentSlideNumber]) {
-            displaySlide(slides[currentSlideNumber]);
-        }
-        updateSlideInfo();
-        showNotification(`Teacher changed to slide ${currentSlideNumber + 1}`);
-    });
-    
-    socket.on('new-message', (message) => {
-        displayMessage(message);
-    });
-    
-    socket.on('teacher-left', () => {
-        showNotification('Teacher has left the classroom', 'warning');
-        // Stop audio if teacher leaves
-        if (currentUser?.role === 'student' && isAudioStreaming) {
-            updateAudioStatus('stopped', 'Audio: Teacher disconnected');
-            peerConnections.forEach(pc => pc.close());
-            peerConnections.clear();
-        }
-    });
-    
-    // WebRTC signaling handlers
-    socket.on('webrtc-offer', handleWebRTCOffer);
-    socket.on('webrtc-answer', handleWebRTCAnswer);
-    socket.on('webrtc-ice-candidate', handleWebRTCIceCandidate);
+      .start-audio-btn:hover {
+        background: #c0392b;
+      }
 
-    // Handle classroom state updates
-    socket.on('classroom-state', updateClassroomState);
-    socket.on('participants-updated', updateParticipantsList);
-}
+      .stop-audio-btn {
+        background: #95a5a6;
+        color: white;
+      }
 
-function loadSlides(slideData) {
-    console.log('🔍 Frontend: Loading slides:', slideData);
-    
-    // Convert slide objects to URL array
-    slides = slideData.map(slide => slide.url || slide);
-    currentSlideNumber = 0;
-    totalSlides = slides.length;
+      .stop-audio-btn:hover {
+        background: #7f8c8d;
+      }
 
-    console.log('🔍 Frontend: Processed slides:', slides);
+      .sidebar {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 15px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+      }
 
-    if(slides.length > 0) {
-        document.getElementById('noSlideMessage').style.display = 'none';
-        document.getElementById('currentSlide').classList.remove('hidden');
-        showSlide(currentSlideNumber);
-    } else {
-        document.getElementById('noSlideMessage').style.display = 'block';
-        document.getElementById('currentSlide').classList.add('hidden');
-    }
-}
+      .participants {
+        margin-bottom: 20px;
+      }
 
-function showSlide(slideIndex) {
-    if (slides[slideIndex]) {
-        displaySlide(slides[slideIndex]);
-        updateSlideInfo();
-        
-        // Preload next slide for better performance
-        if (slides[slideIndex + 1]) {
-            const preload = new Image();
-            preload.src = slides[slideIndex + 1];
-        }
-    }
-}
+      .participants h3 {
+        margin-bottom: 10px;
+        color: #555;
+      }
 
-function joinClassroom() {
-    const name = document.getElementById('nameInput').value.trim();
-    const role = document.getElementById('roleSelect').value;
-    
-    if (!name) {
-        alert('Please enter your name');
-        return;
-    }
-    
-    currentUser = { name, role };
-    
-    // Send join request to server
-    socket.emit('join-classroom', { name, role });
-    
-    // Show classroom interface
-    document.getElementById('joinForm').style.display = 'none';
-    document.getElementById('classroom').style.display = 'grid';
-    
-    // Show teacher controls if user is teacher
-    if (role === 'teacher') {
-        document.getElementById('teacherControls').style.display = 'flex';
-    }
-    
-    console.log(`Joined as ${role}: ${name}`);
-}
+      .participant {
+        padding: 8px;
+        background: #f0f0f0;
+        border-radius: 6px;
+        margin-bottom: 5px;
+        font-size: 14px;
+      }
 
-function updateStatus(status, text) {
-    const statusEl = document.getElementById('status');
-    if (statusEl) {
-        statusEl.className = `status ${status}`;
-        statusEl.textContent = text;
-    }
-}
+      .participant.teacher {
+        background: #e8f5e8;
+        font-weight: bold;
+      }
 
-function updateClassroomState(state) {
-    console.log('🔍 Frontend: Received classroom state:', state);
-    
-    currentSlideNumber = state.currentSlide || 0;
-    totalSlides = state.totalSlides || 0;
-    
-    // Handle slideData properly
-    if (state.slideData && Array.isArray(state.slideData)) {
-        slides = state.slideData.map(slide => slide.url || slide);
-        console.log('🔍 Frontend: State slides:', slides);
-    }
-    
-    if (slides.length > 0 && slides[currentSlideNumber]) {
-        displaySlide(slides[currentSlideNumber]);
-    }
-    
-    updateSlideInfo();
-    if (state.participants) {
-        updateParticipantsList(state.participants);
-    }
-}
+      .chat {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
 
-function updateParticipantsList(participants) {
-    const listEl = document.getElementById('participantsList');
-    const countEl = document.getElementById('participantCount');
-    
-    if (listEl) {
-        listEl.innerHTML = '';
-    }
-    if (countEl) {
-        countEl.textContent = participants.length;
-    }
-    
-    participants.forEach(participant => {
-        const div = document.createElement('div');
-        div.className = `participant ${participant.role}`;
-        div.textContent = `${participant.role === 'teacher' ? '👨‍🏫' : '👨‍🎓'} ${participant.name}`;
-        if (listEl) {
-            listEl.appendChild(div);
-        }
-    });
-}
+      .chat h3 {
+        margin-bottom: 10px;
+        color: #555;
+      }
 
-function updateSlideInfo() {
-    const slideInfoEl = document.getElementById('slideInfo');
-    if (slideInfoEl) {
-        slideInfoEl.textContent = `Slide ${currentSlideNumber + 1} of ${totalSlides || 1}`;
-    }
-}
+      .chat-messages {
+        flex: 1;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        overflow-y: auto;
+        max-height: 300px;
+        background: white;
+        margin-bottom: 10px;
+      }
 
-function displaySlide(slideUrl) {
-    console.log('🖼️ Frontend: Attempting to display slide:', slideUrl);
-    
-    const slideImg = document.getElementById('currentSlide');
-    const noSlideMsg = document.getElementById('noSlideMessage');
+      .message {
+        margin-bottom: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 14px;
+      }
 
-    if (!slideUrl) {
-        console.log('❌ Frontend: No slide URL provided');
-        if (slideImg) slideImg.classList.add('hidden');
-        if (noSlideMsg) noSlideMsg.style.display = 'block';
-        return;
-    }
+      .message.teacher {
+        background: #e3f2fd;
+        border-left: 3px solid #2196f3;
+      }
 
-    if (slideImg) {
-        console.log('🔍 Frontend: Setting image src to:', slideUrl);
-        
-        // Add load event listener
-        slideImg.onload = function() {
-            console.log('✅ Frontend: Image loaded successfully:', slideUrl);
+      .message.student {
+        background: #f3e5f5;
+        border-left: 3px solid #9c27b0;
+      }
 
-            // Preload next slide in the background
-            if (slides && slides[currentSlideNumber + 1]) {
-                const nextUrl = slides[currentSlideNumber + 1];
-                console.log('📥 Preloading next slide:', nextUrl);
-                const preload = new Image();
-                preload.src = nextUrl;
-            }
-        };
+      .message-header {
+        font-weight: bold;
+        color: #555;
+        margin-bottom: 4px;
+      }
 
-        // Enhanced error handling
-        slideImg.onerror = function(event) {
-            console.error('❌ Frontend: Failed to load slide:', slideUrl);
-            console.error('❌ Frontend: Error event:', event);
-            
-            // Try to fetch the URL to see what the actual error is
-            fetch(slideUrl)
-                .then(response => {
-                    console.log('🔍 Frontend: Fetch test status:', response.status);
-                    if (!response.ok) {
-                        console.error('❌ Frontend: Server returned:', response.status, response.statusText);
-                    }
-                })
-                .catch(fetchError => {
-                    console.error('❌ Frontend: Fetch error:', fetchError);
-                });
-            
-            this.classList.add('hidden');
-            if (noSlideMsg) noSlideMsg.style.display = 'block';
-        };
-        
-        slideImg.src = slideUrl;
-        slideImg.classList.remove('hidden');
-    }
-    
-    if (noSlideMsg) noSlideMsg.style.display = 'none';
-}
+      .chat-input {
+        display: flex;
+        gap: 10px;
+      }
 
-function nextSlide() {
-    if (currentUser?.role === 'teacher' && currentSlideNumber < totalSlides - 1) {
-        currentSlideNumber++;
-        if (slides[currentSlideNumber]) {
-            displaySlide(slides[currentSlideNumber]);
-        }
-        updateSlideInfo();
+      .chat-input input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
 
-        // Notify students
-        socket.emit('change-slide', { slideNumber: currentSlideNumber });
-    }
-}
+      .chat-input button {
+        padding: 10px 15px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
 
-function previousSlide() {
-    if (currentUser?.role === 'teacher' && currentSlideNumber > 0) {
-        currentSlideNumber--;
-        if (slides[currentSlideNumber]) {
-            displaySlide(slides[currentSlideNumber]);
-        }
-        updateSlideInfo();
+      .chat-input button:hover {
+        background: #1976d2;
+      }
 
-        // Notify students
-        socket.emit('change-slide', { slideNumber: currentSlideNumber });
-    }
-}
+      .status {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 1000;
+      }
 
-function triggerFileUpload() {
-    if (!currentUser) {
-        alert('Please join the classroom first');
-        return;
-    }
+      .status.connected {
+        background: #4caf50;
+        color: white;
+      }
 
-    if (currentUser.role !== 'teacher') {
-        alert('Only teachers can upload slides');
-        return;
-    }
+      .status.disconnected {
+        background: #f44336;
+        color: white;
+      }
 
-    const fileInput = document.getElementById('slideUpload');
-    if (fileInput) {
-        fileInput.click();
-    } else {
-        console.error('File input element not found');
-    }
-}
+      .audio-status {
+        padding: 10px;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 14px;
+        min-width: 150px;
+      }
 
-function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file || currentUser?.role !== 'teacher') return;
+      .audio-status.streaming {
+        background: #c8e6c9;
+        color: #2e7d32;
+      }
 
-    console.log('📤 Frontend: Uploading file:', file.name);
-    showNotification('Uploading slides...', 'info');
+      .audio-status.stopped {
+        background: #ffcdd2;
+        color: #c62828;
+      }
 
-    const formData = new FormData();
-    formData.append("file", file);
+      .hidden {
+        display: none !important;
+      }
 
-    fetch("/upload", { method: "POST", body: formData })
-        .then(res => {
-            console.log('📤 Frontend: Upload response status:', res.status);
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            console.log('📤 Frontend: Upload response data:', data);
-            
-            if (data.slides && Array.isArray(data.slides)) {
-                // Convert slide objects to URLs
-                slides = data.slides.map(slide => slide.url || slide);
-                currentSlideNumber = 0;
-                totalSlides = slides.length;
-                
-                console.log('📤 Frontend: Processed uploaded slides:', slides);
-                
-                if (slides.length > 0) {
-                    displaySlide(slides[0]);
-                    updateSlideInfo();
-                    showNotification('Slides uploaded successfully!');
-                } else {
-                    throw new Error('No slides in response');
-                }
-            } else {
-                console.error('❌ Frontend: Invalid response format:', data);
-                throw new Error('Invalid response format');
-            }
-        })
-        .catch(err => {
-            console.error("❌ Frontend: Upload failed:", err);
-            alert("Upload failed: " + err.message);
-        });
-}
-
-// Chat functionality
-function sendMessage() {
-    const chatInput = document.getElementById('chatInput');
-    if (!chatInput) return;
-    
-    const message = chatInput.value.trim();
-    
-    if (message && socket && currentUser) {
-        socket.emit('send-message', { 
-            text: message,
-            sender: currentUser.name,
-            role: currentUser.role
-        });
-        chatInput.value = '';
-    }
-}
-
-function setupChatEnterKey() {
-    const chatInput = document.getElementById('chatInput');
-    if (chatInput) {
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-    }
-}
-
-function displayMessage(message) {
-    const messagesEl = document.getElementById('chatMessages');
-    if (!messagesEl) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${message.role}`;
-    
-    messageDiv.innerHTML = `
-        <div class="message-header">${message.sender} (${message.role})</div>
-        <div class="message-content">${escapeHtml(message.text)}</div>
-    `;
-    
-    messagesEl.appendChild(messageDiv);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function showNotification(text, type = 'info') {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
+      .notification {
         position: fixed;
         top: 70px;
         right: 20px;
@@ -956,310 +490,1627 @@ function showNotification(text, type = 'info') {
         color: white;
         font-size: 14px;
         z-index: 1000;
-        background: ${type === 'warning' ? '#ff9800' : type === 'error' ? '#f44336' : '#4CAF50'};
+        animation: slideIn 0.3s ease;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .classroom {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+
+        .container {
+          padding: 10px;
+        }
+
+        .slide-area {
+          height: 250px;
+        }
+
+        .join-form {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .slide-controls {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .teacher-controls {
+          flex-direction: column;
+        }
+
+        .audio-controls {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Connection Status -->
+      <div id="status" class="status disconnected">Disconnected</div>
+
+      <!-- Join Form -->
+      <div id="joinForm" class="header">
+        <h1>🎓 Virtual Classroom for Rural Areas</h1>
+        <p style="margin: 10px 0; color: #666">
+          Smart India Hackathon Prototype
+        </p>
+        <div class="join-form">
+          <input
+            type="text"
+            id="nameInput"
+            placeholder="Enter your name"
+            required
+          />
+          <select id="roleSelect">
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+          </select>
+          <button onclick="joinClassroom()">Join Classroom</button>
+        </div>
+      </div>
+
+      <!-- Main Classroom Interface -->
+      <div id="classroom" class="classroom">
+        <!-- Main Content Area -->
+        <div class="main-content">
+          <div class="slide-area" id="slideArea">
+            <div id="noSlideMessage">
+              <p style="color: #999; font-size: 18px">
+                📋 Waiting for teacher to upload slides...
+              </p>
+            </div>
+            <img
+              id="currentSlide"
+              class="slide-content hidden"
+              alt="Current Slide"
+              loading="lazy"
+            />
+
+            <!-- Whiteboard Container -->
+            <div id="whiteboardContainer" class="whiteboard-container hidden">
+              <canvas id="whiteboardCanvas" class="whiteboard-canvas"></canvas>
+
+              <!-- Whiteboard Controls (Teacher Only) -->
+              <div id="whiteboardControls" class="whiteboard-controls hidden">
+                <div
+                  id="brushTool"
+                  class="whiteboard-tool active"
+                  title="Brush"
+                >
+                  ✏️
+                </div>
+                <div id="eraserTool" class="whiteboard-tool" title="Eraser">
+                  🧹
+                </div>
+                <input
+                  type="color"
+                  id="colorPicker"
+                  class="whiteboard-color-picker"
+                  value="#000000"
+                  title="Color"
+                />
+                <input
+                  type="range"
+                  id="sizeSlider"
+                  class="whiteboard-size-slider"
+                  min="1"
+                  max="20"
+                  value="3"
+                  title="Brush Size"
+                />
+                <div
+                  id="clearBoard"
+                  class="whiteboard-tool"
+                  title="Clear Board"
+                >
+                  🗑️
+                </div>
+              </div>
+
+              <!-- Whiteboard Status -->
+              <div id="whiteboardStatus" class="whiteboard-status">
+                <span
+                  id="syncIndicator"
+                  class="whiteboard-sync-indicator synced"
+                ></span>
+                <span id="syncText">Synced</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="slide-controls">
+            <div class="slide-info">
+              <span id="slideInfo">Slide 0 of 0</span>
+            </div>
+
+            <div id="teacherControls" class="teacher-controls">
+              <!-- Hidden file input -->
+              <input
+                id="slideUpload"
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf,.pptx"
+                style="display: none"
+                onchange="handleFileUpload(event)"
+              />
+
+              <!-- Upload button triggers input click -->
+              <button class="upload-btn" onclick="triggerFileUpload()">
+                📤 Upload Slide
+              </button>
+
+              <!-- Navigation buttons -->
+              <button class="prev-btn" onclick="previousSlide()">
+                ⬅️ Previous
+              </button>
+              <button class="next-btn" onclick="nextSlide()">➡️ Next</button>
+            </div>
+
+            <!-- Whiteboard Toggle (Visible to All) -->
+            <div class="whiteboard-toggle-container">
+              <button
+                id="whiteboardToggle"
+                class="whiteboard-toggle"
+                onclick="toggleWhiteboard()"
+              >
+                🎨 Whiteboard
+              </button>
+            </div>
+          </div>
+
+          <!-- Audio Controls -->
+          <div class="audio-controls">
+            <button
+              id="startAudioBtn"
+              class="start-audio-btn"
+              onclick="startAudio()"
+            >
+              🎤 Start Audio
+            </button>
+            <button
+              id="stopAudioBtn"
+              class="stop-audio-btn hidden"
+              onclick="stopAudio()"
+            >
+              🔇 Stop Audio
+            </button>
+            <div id="audioStatus" class="audio-status stopped">
+              Audio: Stopped
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <!-- Participants -->
+          <div class="participants">
+            <h3>👥 Participants (<span id="participantCount">0</span>)</h3>
+            <div id="participantsList"></div>
+          </div>
+
+          <!-- Chat -->
+          <div class="chat">
+            <h3>💬 Chat</h3>
+            <div id="chatMessages" class="chat-messages"></div>
+            <div class="chat-input">
+              <input
+                type="text"
+                id="chatInput"
+                placeholder="Type a message..."
+                onkeypress="if(event.key==='Enter') sendMessage()"
+              />
+              <button onclick="sendMessage()">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Global variables
+      let socket = null;
+      let currentUser = null;
+      let currentSlideNumber = 0;
+      let totalSlides = 0;
+      let slides = [];
+      let isAudioStreaming = false;
+      let localStream = null;
+      let peerConnections = new Map(); // Store multiple peer connections for students
+
+      // WebRTC configuration for low-bandwidth audio
+      const rtcConfiguration = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
+      };
+
+      // Audio constraints optimized for low bandwidth
+      const audioConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000, // Lower sample rate for bandwidth efficiency
+          sampleSize: 16,
+          channelCount: 1, // Mono audio
+        },
+        video: false,
+      };
+
+      // Initialize connection when page loads
+      window.onload = function () {
+        console.log("Page loaded, initializing socket connection...");
+        initializeSocket();
+        setupChatEnterKey();
+        initializeWhiteboard();
+      };
+
+      // Socket initialization
+      function initializeSocket() {
+        socket = io();
+
+        socket.on("connect", () => {
+          updateStatus("connected", "Connected");
+          showConnectedMessage();
+        });
+
+        socket.on("disconnect", () => {
+          updateStatus("disconnected", "Disconnected");
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+            localStream = null;
+          }
+          peerConnections.forEach((pc) => pc.close());
+          peerConnections.clear();
+        });
+
+        // Handle upload process events
+        socket.on("upload-started", (data) => {
+          console.log("Upload started:", data.filename);
+          showNotification(`Processing ${data.filename}...`);
+          // Clear previous slides
+          slides = [];
+          totalSlides = 0;
+          currentSlideNumber = 0;
+
+          // Hide current slide and show loading message
+          document.getElementById("noSlideMessage").style.display = "block";
+          document.getElementById("currentSlide").classList.add("hidden");
+        });
+
+        socket.on("total-slides", (data) => {
+          totalSlides = data.totalSlides;
+          slides = new Array(totalSlides).fill(null); // Pre-allocate array with nulls
+          console.log(`📊 Expecting ${totalSlides} slides`);
+          showNotification(`Loading ${totalSlides} slides...`);
+        });
+
+        socket.on("slide-ready", (data) => {
+          console.log("✅ New slide ready:", data);
+          slides[data.index] = data.url;
+
+          // Display first slide immediately when ready
+          if (data.index === 0) {
+            currentSlideNumber = 0;
+            displaySlide(data.url);
+            updateSlideInfo();
+            showNotification("First slide ready!");
+          }
+        });
+
+        socket.on("upload-complete", (data) => {
+          console.log("✅ Upload complete:", data.totalSlides);
+          showNotification(
+            `All ${data.totalSlides} slides loaded successfully!`
+          );
+
+          // Ensure first slide is displayed if not already
+          if (slides[0] && currentSlideNumber === 0) {
+            displaySlide(slides[0]);
+            updateSlideInfo();
+          }
+        });
+
+        // Handle direct slide uploads (for compatibility)
+        socket.on("slide-uploaded", (data) => {
+          console.log("🔍 Frontend: Received slide-uploaded:", data);
+
+          const slideData = data.slideData || [];
+          slides = slideData.map((slide) => slide.url || slide);
+          totalSlides = slides.length;
+          currentSlideNumber = 0;
+
+          console.log("🔍 Frontend: Extracted slide URLs:", slides);
+
+          if (slides.length > 0) {
+            displaySlide(slides[currentSlideNumber]);
+            updateSlideInfo();
+            showNotification("Teacher uploaded new slides");
+          }
+        });
+
+        socket.on("slide-changed", (data) => {
+          currentSlideNumber = data.slideNumber;
+          if (slides[currentSlideNumber]) {
+            displaySlide(slides[currentSlideNumber]);
+          }
+          updateSlideInfo();
+          showNotification(
+            `Teacher changed to slide ${currentSlideNumber + 1}`
+          );
+        });
+
+        socket.on("new-message", (message) => {
+          displayMessage(message);
+        });
+
+        socket.on("teacher-left", () => {
+          showNotification("Teacher has left the classroom", "warning");
+          // Stop audio if teacher leaves
+          if (currentUser?.role === "student" && isAudioStreaming) {
+            updateAudioStatus("stopped", "Audio: Teacher disconnected");
+            peerConnections.forEach((pc) => pc.close());
+            peerConnections.clear();
+          }
+        });
+
+        // WebRTC signaling handlers
+        socket.on("webrtc-offer", handleWebRTCOffer);
+        socket.on("webrtc-answer", handleWebRTCAnswer);
+        socket.on("webrtc-ice-candidate", handleWebRTCIceCandidate);
+
+        // Handle classroom state updates
+        socket.on("classroom-state", updateClassroomState);
+        socket.on("participants-updated", updateParticipantsList);
+
+        // Handle whiteboard events
+        socket.on("whiteboard-update", handleWhiteboardUpdate);
+        socket.on("whiteboard-state", handleWhiteboardState);
+        socket.on("whiteboard-clear", handleWhiteboardClear);
+        socket.on("whiteboard-toggle", handleWhiteboardToggle);
+      }
+
+      function loadSlides(slideData) {
+        console.log("🔍 Frontend: Loading slides:", slideData);
+
+        // Convert slide objects to URL array
+        slides = slideData.map((slide) => slide.url || slide);
+        currentSlideNumber = 0;
+        totalSlides = slides.length;
+
+        console.log("🔍 Frontend: Processed slides:", slides);
+
+        if (slides.length > 0) {
+          document.getElementById("noSlideMessage").style.display = "none";
+          document.getElementById("currentSlide").classList.remove("hidden");
+          showSlide(currentSlideNumber);
+        } else {
+          document.getElementById("noSlideMessage").style.display = "block";
+          document.getElementById("currentSlide").classList.add("hidden");
+        }
+      }
+
+      function showSlide(slideIndex) {
+        if (slides[slideIndex]) {
+          displaySlide(slides[slideIndex]);
+          updateSlideInfo();
+
+          // Preload next slide for better performance
+          if (slides[slideIndex + 1]) {
+            const preload = new Image();
+            preload.src = slides[slideIndex + 1];
+          }
+        }
+      }
+
+      function joinClassroom() {
+        const name = document.getElementById("nameInput").value.trim();
+        const role = document.getElementById("roleSelect").value;
+
+        if (!name) {
+          alert("Please enter your name");
+          return;
+        }
+
+        currentUser = { name, role };
+
+        // Send join request to server
+        socket.emit("join-classroom", { name, role });
+
+        // Show classroom interface
+        document.getElementById("joinForm").style.display = "none";
+        document.getElementById("classroom").style.display = "grid";
+
+        // Show teacher controls if user is teacher
+        if (role === "teacher") {
+          document.getElementById("teacherControls").style.display = "flex";
+        }
+
+        console.log(`Joined as ${role}: ${name}`);
+      }
+
+      function updateStatus(status, text) {
+        const statusEl = document.getElementById("status");
+        if (statusEl) {
+          statusEl.className = `status ${status}`;
+          statusEl.textContent = text;
+        }
+      }
+
+      function updateClassroomState(state) {
+        console.log("🔍 Frontend: Received classroom state:", state);
+
+        currentSlideNumber = state.currentSlide || 0;
+        totalSlides = state.totalSlides || 0;
+
+        // Handle slideData properly
+        if (state.slideData && Array.isArray(state.slideData)) {
+          slides = state.slideData.map((slide) => slide.url || slide);
+          console.log("🔍 Frontend: State slides:", slides);
+        }
+
+        if (slides.length > 0 && slides[currentSlideNumber]) {
+          displaySlide(slides[currentSlideNumber]);
+        }
+
+        updateSlideInfo();
+        if (state.participants) {
+          updateParticipantsList(state.participants);
+        }
+      }
+
+      function updateParticipantsList(participants) {
+        const listEl = document.getElementById("participantsList");
+        const countEl = document.getElementById("participantCount");
+
+        if (listEl) {
+          listEl.innerHTML = "";
+        }
+        if (countEl) {
+          countEl.textContent = participants.length;
+        }
+
+        participants.forEach((participant) => {
+          const div = document.createElement("div");
+          div.className = `participant ${participant.role}`;
+          div.textContent = `${participant.role === "teacher" ? "👨‍🏫" : "👨‍🎓"} ${
+            participant.name
+          }`;
+          if (listEl) {
+            listEl.appendChild(div);
+          }
+        });
+      }
+
+      function updateSlideInfo() {
+        const slideInfoEl = document.getElementById("slideInfo");
+        if (slideInfoEl) {
+          slideInfoEl.textContent = `Slide ${currentSlideNumber + 1} of ${
+            totalSlides || 1
+          }`;
+        }
+      }
+
+      function displaySlide(slideUrl) {
+        console.log("🖼️ Frontend: Attempting to display slide:", slideUrl);
+
+        const slideImg = document.getElementById("currentSlide");
+        const noSlideMsg = document.getElementById("noSlideMessage");
+
+        if (!slideUrl) {
+          console.log("❌ Frontend: No slide URL provided");
+          if (slideImg) slideImg.classList.add("hidden");
+          if (noSlideMsg) noSlideMsg.style.display = "block";
+          return;
+        }
+
+        if (slideImg) {
+          console.log("🔍 Frontend: Setting image src to:", slideUrl);
+
+          // Add load event listener
+          slideImg.onload = function () {
+            console.log("✅ Frontend: Image loaded successfully:", slideUrl);
+
+            // Preload next slide in the background
+            if (slides && slides[currentSlideNumber + 1]) {
+              const nextUrl = slides[currentSlideNumber + 1];
+              console.log("📥 Preloading next slide:", nextUrl);
+              const preload = new Image();
+              preload.src = nextUrl;
+            }
+          };
+
+          // Enhanced error handling
+          slideImg.onerror = function (event) {
+            console.error("❌ Frontend: Failed to load slide:", slideUrl);
+            console.error("❌ Frontend: Error event:", event);
+
+            // Try to fetch the URL to see what the actual error is
+            fetch(slideUrl)
+              .then((response) => {
+                console.log("🔍 Frontend: Fetch test status:", response.status);
+                if (!response.ok) {
+                  console.error(
+                    "❌ Frontend: Server returned:",
+                    response.status,
+                    response.statusText
+                  );
+                }
+              })
+              .catch((fetchError) => {
+                console.error("❌ Frontend: Fetch error:", fetchError);
+              });
+
+            this.classList.add("hidden");
+            if (noSlideMsg) noSlideMsg.style.display = "block";
+          };
+
+          slideImg.src = slideUrl;
+          slideImg.classList.remove("hidden");
+        }
+
+        if (noSlideMsg) noSlideMsg.style.display = "none";
+      }
+
+      function nextSlide() {
+        if (
+          currentUser?.role === "teacher" &&
+          currentSlideNumber < totalSlides - 1
+        ) {
+          currentSlideNumber++;
+          if (slides[currentSlideNumber]) {
+            displaySlide(slides[currentSlideNumber]);
+          }
+          updateSlideInfo();
+
+          // Notify students
+          socket.emit("change-slide", { slideNumber: currentSlideNumber });
+        }
+      }
+
+      function previousSlide() {
+        if (currentUser?.role === "teacher" && currentSlideNumber > 0) {
+          currentSlideNumber--;
+          if (slides[currentSlideNumber]) {
+            displaySlide(slides[currentSlideNumber]);
+          }
+          updateSlideInfo();
+
+          // Notify students
+          socket.emit("change-slide", { slideNumber: currentSlideNumber });
+        }
+      }
+
+      function triggerFileUpload() {
+        if (!currentUser) {
+          alert("Please join the classroom first");
+          return;
+        }
+
+        if (currentUser.role !== "teacher") {
+          alert("Only teachers can upload slides");
+          return;
+        }
+
+        const fileInput = document.getElementById("slideUpload");
+        if (fileInput) {
+          fileInput.click();
+        } else {
+          console.error("File input element not found");
+        }
+      }
+
+      function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file || currentUser?.role !== "teacher") return;
+
+        console.log("📤 Frontend: Uploading file:", file.name);
+        showNotification("Uploading slides...", "info");
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        fetch("/upload", { method: "POST", body: formData })
+          .then((res) => {
+            console.log("📤 Frontend: Upload response status:", res.status);
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then((data) => {
+            console.log("📤 Frontend: Upload response data:", data);
+
+            if (data.slides && Array.isArray(data.slides)) {
+              // Convert slide objects to URLs
+              slides = data.slides.map((slide) => slide.url || slide);
+              currentSlideNumber = 0;
+              totalSlides = slides.length;
+
+              console.log("📤 Frontend: Processed uploaded slides:", slides);
+
+              if (slides.length > 0) {
+                displaySlide(slides[0]);
+                updateSlideInfo();
+                showNotification("Slides uploaded successfully!");
+              } else {
+                throw new Error("No slides in response");
+              }
+            } else {
+              console.error("❌ Frontend: Invalid response format:", data);
+              throw new Error("Invalid response format");
+            }
+          })
+          .catch((err) => {
+            console.error("❌ Frontend: Upload failed:", err);
+            alert("Upload failed: " + err.message);
+          });
+      }
+
+      // Chat functionality
+      function sendMessage() {
+        const chatInput = document.getElementById("chatInput");
+        if (!chatInput) return;
+
+        const message = chatInput.value.trim();
+
+        if (message && socket && currentUser) {
+          socket.emit("send-message", {
+            text: message,
+            sender: currentUser.name,
+            role: currentUser.role,
+          });
+          chatInput.value = "";
+        }
+      }
+
+      function setupChatEnterKey() {
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+          chatInput.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+              sendMessage();
+            }
+          });
+        }
+      }
+
+      function displayMessage(message) {
+        const messagesEl = document.getElementById("chatMessages");
+        if (!messagesEl) return;
+
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${message.role}`;
+
+        messageDiv.innerHTML = `
+        <div class="message-header">${message.sender} (${message.role})</div>
+        <div class="message-content">${escapeHtml(message.text)}</div>
+    `;
+
+        messagesEl.appendChild(messageDiv);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function showNotification(text, type = "info") {
+        const notification = document.createElement("div");
+        notification.style.cssText = `
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        padding: 10px 15px;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        z-index: 1000;
+        background: ${
+          type === "warning"
+            ? "#ff9800"
+            : type === "error"
+            ? "#f44336"
+            : "#4CAF50"
+        };
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     `;
-    notification.textContent = text;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentNode) {
+        notification.textContent = text;
+
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+          if (notification.parentNode) {
             notification.remove();
+          }
+        }, 3000);
+      }
+
+      function showConnectedMessage() {
+        const messages = [
+          "🎉 Connected! You can now join the classroom.",
+          "✨ Connection established successfully!",
+          "🚀 Ready to start learning!",
+        ];
+
+        const randomMessage =
+          messages[Math.floor(Math.random() * messages.length)];
+        showNotification(randomMessage);
+      }
+
+      // =============================================================================
+      // WebRTC Audio Streaming (Low-bandwidth with Opus codec)
+      // =============================================================================
+
+      async function startAudio() {
+        if (currentUser?.role !== "teacher") {
+          alert("Only teacher can start audio streaming");
+          return;
         }
-    }, 3000);
-}
 
-function showConnectedMessage() {
-    const messages = [
-        "🎉 Connected! You can now join the classroom.",
-        "✨ Connection established successfully!",
-        "🚀 Ready to start learning!"
-    ];
-    
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    showNotification(randomMessage);
-}
+        if (isAudioStreaming) {
+          console.log("Audio already streaming");
+          return;
+        }
 
-// =============================================================================
-// WebRTC Audio Streaming (Low-bandwidth with Opus codec)
-// =============================================================================
+        try {
+          // Get user media with optimized audio settings
+          localStream = await navigator.mediaDevices.getUserMedia(
+            audioConstraints
+          );
 
-async function startAudio() {
-    if (currentUser?.role !== 'teacher') {
-        alert('Only teacher can start audio streaming');
-        return;
-    }
-    
-    if (isAudioStreaming) {
-        console.log('Audio already streaming');
-        return;
-    }
-    
-    try {
-        // Get user media with optimized audio settings
-        localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-        
-        console.log('Got local audio stream');
-        
-        // Update UI
-        const startBtn = document.getElementById('startAudioBtn');
-        const stopBtn = document.getElementById('stopAudioBtn');
-        if (startBtn) startBtn.classList.add('hidden');
-        if (stopBtn) stopBtn.classList.remove('hidden');
-        
-        updateAudioStatus('streaming', 'Audio: Streaming 🔴');
-        
-        isAudioStreaming = true;
-        
-        // Create peer connections for all current students
-        await createPeerConnectionsForStudents();
-        
-    } catch (error) {
-        console.error('Error accessing microphone:', error);
-        alert('Could not access microphone. Please check permissions.');
-        updateAudioStatus('error', 'Audio: Error accessing microphone');
-    }
-}
+          console.log("Got local audio stream");
 
-function stopAudio() {
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-    
-    // Close all peer connections
-    peerConnections.forEach(pc => {
-        pc.close();
-    });
-    peerConnections.clear();
-    
-    // Update UI
-    const startBtn = document.getElementById('startAudioBtn');
-    const stopBtn = document.getElementById('stopAudioBtn');
-    if (startBtn) startBtn.classList.remove('hidden');
-    if (stopBtn) stopBtn.classList.add('hidden');
-    
-    updateAudioStatus('stopped', 'Audio: Stopped');
-    
-    isAudioStreaming = false;
-    
-    // Notify students that audio has stopped
-    socket.emit('audio-stopped');
-    
-    console.log('Audio streaming stopped');
-}
+          // Update UI
+          const startBtn = document.getElementById("startAudioBtn");
+          const stopBtn = document.getElementById("stopAudioBtn");
+          if (startBtn) startBtn.classList.add("hidden");
+          if (stopBtn) stopBtn.classList.remove("hidden");
 
-function updateAudioStatus(status, text) {
-    const statusEl = document.getElementById('audioStatus');
-    if (statusEl) {
-        statusEl.className = `audio-status ${status}`;
-        statusEl.textContent = text;
-    }
-}
+          updateAudioStatus("streaming", "Audio: Streaming 🔴");
 
-async function createPeerConnectionsForStudents() {
-    if (!localStream) {
-        console.error('No local stream available');
-        return;
-    }
-    
-    try {
-        // Create a single peer connection for broadcasting
-        const peerConnection = new RTCPeerConnection(rtcConfiguration);
-        
-        // Add local audio stream to peer connection
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
+          isAudioStreaming = true;
+
+          // Create peer connections for all current students
+          await createPeerConnectionsForStudents();
+        } catch (error) {
+          console.error("Error accessing microphone:", error);
+          alert("Could not access microphone. Please check permissions.");
+          updateAudioStatus("error", "Audio: Error accessing microphone");
+        }
+      }
+
+      function stopAudio() {
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+          localStream = null;
+        }
+
+        // Close all peer connections
+        peerConnections.forEach((pc) => {
+          pc.close();
         });
-        
-        // Handle ICE candidates
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('webrtc-ice-candidate', {
-                    candidate: event.candidate
-                });
-            }
-        };
-        
-        // Handle connection state changes
-        peerConnection.onconnectionstatechange = () => {
-            console.log('Connection state:', peerConnection.connectionState);
-            if (peerConnection.connectionState === 'failed') {
-                console.error('WebRTC connection failed');
-                updateAudioStatus('error', 'Audio: Connection failed');
-            }
-        };
-        
-        // Create and send offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        
-        socket.emit('webrtc-offer', { offer: offer });
-        
-        // Store the peer connection
-        peerConnections.set('broadcast', peerConnection);
-        
-        console.log('Created WebRTC offer for audio streaming');
-        
-    } catch (error) {
-        console.error('Error creating peer connection:', error);
-        updateAudioStatus('error', 'Audio: Failed to create connection');
-    }
-}
+        peerConnections.clear();
 
-// Handle incoming WebRTC offer (students receive this)
-async function handleWebRTCOffer(data) {
-    if (currentUser?.role !== 'student') return;
-    
-    console.log('Received WebRTC offer from teacher');
-    
-    try {
-        const peerConnection = new RTCPeerConnection(rtcConfiguration);
-        
-        // Handle incoming audio stream
-        peerConnection.ontrack = (event) => {
-            console.log('Received remote audio stream');
+        // Update UI
+        const startBtn = document.getElementById("startAudioBtn");
+        const stopBtn = document.getElementById("stopAudioBtn");
+        if (startBtn) startBtn.classList.remove("hidden");
+        if (stopBtn) stopBtn.classList.add("hidden");
+
+        updateAudioStatus("stopped", "Audio: Stopped");
+
+        isAudioStreaming = false;
+
+        // Notify students that audio has stopped
+        socket.emit("audio-stopped");
+
+        console.log("Audio streaming stopped");
+      }
+
+      function updateAudioStatus(status, text) {
+        const statusEl = document.getElementById("audioStatus");
+        if (statusEl) {
+          statusEl.className = `audio-status ${status}`;
+          statusEl.textContent = text;
+        }
+      }
+
+      async function createPeerConnectionsForStudents() {
+        if (!localStream) {
+          console.error("No local stream available");
+          return;
+        }
+
+        try {
+          // Create a single peer connection for broadcasting
+          const peerConnection = new RTCPeerConnection(rtcConfiguration);
+
+          // Add local audio stream to peer connection
+          localStream.getTracks().forEach((track) => {
+            peerConnection.addTrack(track, localStream);
+          });
+
+          // Handle ICE candidates
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit("webrtc-ice-candidate", {
+                candidate: event.candidate,
+              });
+            }
+          };
+
+          // Handle connection state changes
+          peerConnection.onconnectionstatechange = () => {
+            console.log("Connection state:", peerConnection.connectionState);
+            if (peerConnection.connectionState === "failed") {
+              console.error("WebRTC connection failed");
+              updateAudioStatus("error", "Audio: Connection failed");
+            }
+          };
+
+          // Create and send offer
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+
+          socket.emit("webrtc-offer", { offer: offer });
+
+          // Store the peer connection
+          peerConnections.set("broadcast", peerConnection);
+
+          console.log("Created WebRTC offer for audio streaming");
+        } catch (error) {
+          console.error("Error creating peer connection:", error);
+          updateAudioStatus("error", "Audio: Failed to create connection");
+        }
+      }
+
+      // Handle incoming WebRTC offer (students receive this)
+      async function handleWebRTCOffer(data) {
+        if (currentUser?.role !== "student") return;
+
+        console.log("Received WebRTC offer from teacher");
+
+        try {
+          const peerConnection = new RTCPeerConnection(rtcConfiguration);
+
+          // Handle incoming audio stream
+          peerConnection.ontrack = (event) => {
+            console.log("Received remote audio stream");
             const remoteAudio = new Audio();
             remoteAudio.srcObject = event.streams[0];
             remoteAudio.autoplay = true;
-            
+
             // Handle audio play promise
-            remoteAudio.play().catch(error => {
-                console.error('Error playing audio:', error);
-                updateAudioStatus('error', 'Audio: Playback error');
+            remoteAudio.play().catch((error) => {
+              console.error("Error playing audio:", error);
+              updateAudioStatus("error", "Audio: Playback error");
             });
-            
-            updateAudioStatus('receiving', 'Audio: Receiving from teacher 🔊');
-        };
-        
-        // Handle ICE candidates
-        peerConnection.onicecandidate = (event) => {
+
+            updateAudioStatus("receiving", "Audio: Receiving from teacher 🔊");
+          };
+
+          // Handle ICE candidates
+          peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                socket.emit('webrtc-ice-candidate', {
-                    candidate: event.candidate,
-                    targetId: data.senderId
-                });
+              socket.emit("webrtc-ice-candidate", {
+                candidate: event.candidate,
+                targetId: data.senderId,
+              });
             }
-        };
-        
-        // Handle connection state changes
-        peerConnection.onconnectionstatechange = () => {
-            console.log('Student connection state:', peerConnection.connectionState);
-            if (peerConnection.connectionState === 'disconnected' || 
-                peerConnection.connectionState === 'failed') {
-                updateAudioStatus('stopped', 'Audio: Connection lost');
+          };
+
+          // Handle connection state changes
+          peerConnection.onconnectionstatechange = () => {
+            console.log(
+              "Student connection state:",
+              peerConnection.connectionState
+            );
+            if (
+              peerConnection.connectionState === "disconnected" ||
+              peerConnection.connectionState === "failed"
+            ) {
+              updateAudioStatus("stopped", "Audio: Connection lost");
             }
-        };
-        
-        // Set remote description and create answer
-        await peerConnection.setRemoteDescription(data.offer);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        
-        // Send answer back to teacher
-        socket.emit('webrtc-answer', {
+          };
+
+          // Set remote description and create answer
+          await peerConnection.setRemoteDescription(data.offer);
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+
+          // Send answer back to teacher
+          socket.emit("webrtc-answer", {
             answer: answer,
-            targetId: data.senderId
-        });
-        
-        // Store the peer connection
-        peerConnections.set(data.senderId || 'teacher', peerConnection);
-        
-    } catch (error) {
-        console.error('Error handling WebRTC offer:', error);
-        updateAudioStatus('error', 'Audio: Connection error');
-    }
-}
+            targetId: data.senderId,
+          });
 
-// Handle WebRTC answer (teacher receives this)
-async function handleWebRTCAnswer(data) {
-    if (currentUser?.role !== 'teacher') return;
-    
-    console.log('Received WebRTC answer from student');
-    
-    try {
-        const peerConnection = peerConnections.get('broadcast');
-        if (peerConnection && peerConnection.signalingState !== 'stable') {
+          // Store the peer connection
+          peerConnections.set(data.senderId || "teacher", peerConnection);
+        } catch (error) {
+          console.error("Error handling WebRTC offer:", error);
+          updateAudioStatus("error", "Audio: Connection error");
+        }
+      }
+
+      // Handle WebRTC answer (teacher receives this)
+      async function handleWebRTCAnswer(data) {
+        if (currentUser?.role !== "teacher") return;
+
+        console.log("Received WebRTC answer from student");
+
+        try {
+          const peerConnection = peerConnections.get("broadcast");
+          if (peerConnection && peerConnection.signalingState !== "stable") {
             await peerConnection.setRemoteDescription(data.answer);
+          }
+        } catch (error) {
+          console.error("Error handling WebRTC answer:", error);
         }
-    } catch (error) {
-        console.error('Error handling WebRTC answer:', error);
-    }
-}
+      }
 
-// Handle ICE candidates
-async function handleWebRTCIceCandidate(data) {
-    console.log('Received ICE candidate');
-    
-    if (!data.candidate) return;
-    
-    try {
-        let peerConnection;
-        if (currentUser?.role === 'teacher') {
-            peerConnection = peerConnections.get('broadcast');
-        } else {
-            peerConnection = peerConnections.get(data.senderId || 'teacher');
-        }
-        
-        if (peerConnection && peerConnection.remoteDescription) {
+      // Handle ICE candidates
+      async function handleWebRTCIceCandidate(data) {
+        console.log("Received ICE candidate");
+
+        if (!data.candidate) return;
+
+        try {
+          let peerConnection;
+          if (currentUser?.role === "teacher") {
+            peerConnection = peerConnections.get("broadcast");
+          } else {
+            peerConnection = peerConnections.get(data.senderId || "teacher");
+          }
+
+          if (peerConnection && peerConnection.remoteDescription) {
             await peerConnection.addIceCandidate(data.candidate);
-        } else {
-            console.log('Peer connection not ready for ICE candidate');
+          } else {
+            console.log("Peer connection not ready for ICE candidate");
+          }
+        } catch (error) {
+          console.error("Error adding ICE candidate:", error);
         }
-    } catch (error) {
-        console.error('Error adding ICE candidate:', error);
-    }
-}
+      }
 
-// =============================================================================
-// Debugging and Utility Functions
-// =============================================================================
+      // =============================================================================
+      // Whiteboard Functionality
+      // =============================================================================
 
-function debugSlideState() {
-    console.log('=== SLIDE DEBUG INFO ===');
-    console.log('Current slide number:', currentSlideNumber);
-    console.log('Total slides:', totalSlides);
-    console.log('Slides array:', slides);
-    console.log('Current user:', currentUser);
-    
-    // Check DOM elements
-    const slideImg = document.getElementById('currentSlide');
-    const noSlideMsg = document.getElementById('noSlideMessage');
-    
-    console.log('Slide image element:', slideImg);
-    console.log('No slide message element:', noSlideMsg);
-    
-    if (slideImg) {
-        console.log('Slide image src:', slideImg.src);
-        console.log('Slide image classes:', slideImg.className);
-    }
-    
-    console.log('========================');
-}
+      // Whiteboard state
+      let whiteboardActive = false;
+      let whiteboardCanvas = null;
+      let whiteboardCtx = null;
+      let isDrawing = false;
+      let currentTool = "brush";
+      let currentColor = "#000000";
+      let currentSize = 3;
+      let lastX = 0;
+      let lastY = 0;
 
-// Add this to window for debugging in console
-window.debugSlideState = debugSlideState;
+      // Yjs document for collaborative editing
+      let ydoc = null;
+      let ymap = null;
+      let isSyncing = false;
 
-// Handle page visibility changes to manage connections
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden && isAudioStreaming && currentUser?.role === 'teacher') {
-        console.log('Page hidden, maintaining audio connection');
-    } else if (!document.hidden && isAudioStreaming) {
-        console.log('Page visible, audio connection active');
-    }
-});
+      // IndexedDB for offline persistence
+      let db = null;
 
-// Clean up on page unload
-window.addEventListener('beforeunload', function() {
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-    }
-    peerConnections.forEach(pc => pc.close());
-    if (socket) {
-        socket.disconnect();
-    }
-});
-</script>
-</body>
+      // Initialize whiteboard when page loads
+      function initializeWhiteboard() {
+        whiteboardCanvas = document.getElementById("whiteboardCanvas");
+        if (!whiteboardCanvas) return;
+
+        whiteboardCtx = whiteboardCanvas.getContext("2d");
+
+        // Set canvas size to match container
+        resizeCanvas();
+
+        // Check if Yjs is available
+        if (typeof Y === "undefined") {
+          console.error(
+            "Yjs library not loaded. Whiteboard will work in offline mode only."
+          );
+          showNotification(
+            "Whiteboard libraries loading... Please refresh if issues persist.",
+            "warning"
+          );
+          // Initialize without Yjs for basic functionality
+          initializeBasicWhiteboard();
+        } else {
+          // Initialize Yjs document
+          initializeYjs();
+          // Initialize IndexedDB
+          initializeIndexedDB();
+        }
+
+        // Set up event listeners
+        setupWhiteboardEventListeners();
+
+        console.log("Whiteboard initialized");
+      }
+
+      // Resize canvas to match container
+      function resizeCanvas() {
+        if (!whiteboardCanvas) return;
+
+        const container = document.getElementById("whiteboardContainer");
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        whiteboardCanvas.width = rect.width;
+        whiteboardCanvas.height = rect.height;
+
+        // Set default drawing properties
+        if (whiteboardCtx) {
+          whiteboardCtx.lineCap = "round";
+          whiteboardCtx.lineJoin = "round";
+          whiteboardCtx.strokeStyle = currentColor;
+          whiteboardCtx.lineWidth = currentSize;
+        }
+      }
+
+      // Initialize basic whiteboard without Yjs (fallback mode)
+      function initializeBasicWhiteboard() {
+        console.log("Initializing basic whiteboard mode");
+        // Create a simple drawing history for basic functionality
+        window.drawingHistory = [];
+        window.historyIndex = -1;
+      }
+
+      // Initialize Yjs document for collaborative editing
+      function initializeYjs() {
+        ydoc = new Y.Doc();
+        ymap = ydoc.getMap("whiteboard");
+
+        // Listen for changes from other clients
+        ymap.observe((event) => {
+          if (isSyncing) return; // Prevent infinite loops
+
+          event.changes.keys.forEach((change, key) => {
+            if (change.action === "add" || change.action === "update") {
+              const drawingData = ymap.get(key);
+              if (drawingData) {
+                renderDrawing(drawingData);
+              }
+            } else if (change.action === "delete") {
+              // Handle deletion if needed
+              clearCanvas();
+            }
+          });
+        });
+
+        // Listen for document updates to sync with server
+        ydoc.on("update", (update) => {
+          if (socket && currentUser?.role === "teacher") {
+            socket.emit("whiteboard-update", {
+              update: Array.from(update),
+              timestamp: Date.now(),
+            });
+          }
+        });
+      }
+
+      // Initialize IndexedDB for offline persistence
+      async function initializeIndexedDB() {
+        try {
+          db = await idb.openDB("whiteboard-db", 1, {
+            upgrade(db) {
+              db.createObjectStore("whiteboard-state");
+            },
+          });
+
+          // Load saved state
+          await loadWhiteboardState();
+        } catch (error) {
+          console.error("Failed to initialize IndexedDB:", error);
+        }
+      }
+
+      // Save whiteboard state to IndexedDB
+      async function saveWhiteboardState() {
+        if (!db || !ymap) return;
+
+        try {
+          const state = {
+            canvasData: whiteboardCanvas.toDataURL(),
+            ymapData: Y.encodeStateAsUpdate(ydoc),
+            timestamp: Date.now(),
+          };
+
+          await db.put("whiteboard-state", state, "current");
+        } catch (error) {
+          console.error("Failed to save whiteboard state:", error);
+        }
+      }
+
+      // Load whiteboard state from IndexedDB
+      async function loadWhiteboardState() {
+        if (!db || !ymap) return;
+
+        try {
+          const state = await db.get("whiteboard-state", "current");
+          if (state) {
+            // Restore canvas
+            const img = new Image();
+            img.onload = () => {
+              if (whiteboardCtx) {
+                whiteboardCtx.clearRect(
+                  0,
+                  0,
+                  whiteboardCanvas.width,
+                  whiteboardCanvas.height
+                );
+                whiteboardCtx.drawImage(img, 0, 0);
+              }
+            };
+            img.src = state.canvasData;
+
+            // Restore Yjs state
+            if (state.ymapData) {
+              Y.applyUpdate(ydoc, new Uint8Array(state.ymapData));
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load whiteboard state:", error);
+        }
+      }
+
+      // Set up whiteboard event listeners
+      function setupWhiteboardEventListeners() {
+        if (!whiteboardCanvas) return;
+
+        // Mouse events
+        whiteboardCanvas.addEventListener("mousedown", startDrawing);
+        whiteboardCanvas.addEventListener("mousemove", draw);
+        whiteboardCanvas.addEventListener("mouseup", stopDrawing);
+        whiteboardCanvas.addEventListener("mouseout", stopDrawing);
+
+        // Touch events for mobile
+        whiteboardCanvas.addEventListener("touchstart", handleTouch);
+        whiteboardCanvas.addEventListener("touchmove", handleTouch);
+        whiteboardCanvas.addEventListener("touchend", stopDrawing);
+
+        // Tool controls
+        document
+          .getElementById("brushTool")
+          ?.addEventListener("click", () => setTool("brush"));
+        document
+          .getElementById("eraserTool")
+          ?.addEventListener("click", () => setTool("eraser"));
+        document
+          .getElementById("colorPicker")
+          ?.addEventListener("change", (e) => setColor(e.target.value));
+        document
+          .getElementById("sizeSlider")
+          ?.addEventListener("input", (e) => setSize(e.target.value));
+        document
+          .getElementById("clearBoard")
+          ?.addEventListener("click", clearWhiteboard);
+
+        // Keyboard shortcuts
+        document.addEventListener("keydown", handleKeyboardShortcuts);
+
+        // Window resize
+        window.addEventListener("resize", resizeCanvas);
+      }
+
+      // Handle touch events
+      function handleTouch(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent(
+          e.type === "touchstart"
+            ? "mousedown"
+            : e.type === "touchmove"
+            ? "mousemove"
+            : "mouseup",
+          {
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+          }
+        );
+        whiteboardCanvas.dispatchEvent(mouseEvent);
+      }
+
+      // Start drawing
+      function startDrawing(e) {
+        if (currentUser?.role !== "teacher") return;
+
+        isDrawing = true;
+        const rect = whiteboardCanvas.getBoundingClientRect();
+        lastX = e.clientX - rect.left;
+        lastY = e.clientY - rect.top;
+      }
+
+      // Draw
+      function draw(e) {
+        if (!isDrawing || currentUser?.role !== "teacher") return;
+
+        const rect = whiteboardCanvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+
+        // Draw on canvas
+        whiteboardCtx.beginPath();
+        whiteboardCtx.moveTo(lastX, lastY);
+        whiteboardCtx.lineTo(currentX, currentY);
+        whiteboardCtx.stroke();
+
+        // Save drawing data
+        const drawingData = {
+          type: "line",
+          startX: lastX,
+          startY: lastY,
+          endX: currentX,
+          endY: currentY,
+          color: currentColor,
+          size: currentSize,
+          tool: currentTool,
+          timestamp: Date.now(),
+        };
+
+        // Save to Yjs if available, otherwise use basic mode
+        if (ymap) {
+          const key = `drawing_${Date.now()}_${Math.random()}`;
+          ymap.set(key, drawingData);
+        } else {
+          // Basic mode - store in history
+          if (window.drawingHistory) {
+            window.drawingHistory.push(drawingData);
+            window.historyIndex = window.drawingHistory.length - 1;
+          }
+
+          // Send to server for basic sync
+          if (socket) {
+            socket.emit("whiteboard-update", {
+              update: drawingData,
+              timestamp: Date.now(),
+            });
+          }
+        }
+
+        lastX = currentX;
+        lastY = currentY;
+      }
+
+      // Stop drawing
+      function stopDrawing() {
+        isDrawing = false;
+      }
+
+      // Render drawing from Yjs data
+      function renderDrawing(drawingData) {
+        if (!whiteboardCtx) return;
+
+        const { type, startX, startY, endX, endY, color, size, tool } =
+          drawingData;
+
+        if (type === "line") {
+          whiteboardCtx.save();
+          whiteboardCtx.strokeStyle = color;
+          whiteboardCtx.lineWidth = size;
+          whiteboardCtx.globalCompositeOperation =
+            tool === "eraser" ? "destination-out" : "source-over";
+
+          whiteboardCtx.beginPath();
+          whiteboardCtx.moveTo(startX, startY);
+          whiteboardCtx.lineTo(endX, endY);
+          whiteboardCtx.stroke();
+
+          whiteboardCtx.restore();
+        }
+      }
+
+      // Set drawing tool
+      function setTool(tool) {
+        currentTool = tool;
+
+        // Update UI
+        document
+          .querySelectorAll(".whiteboard-tool")
+          .forEach((el) => el.classList.remove("active"));
+        document.getElementById(tool + "Tool")?.classList.add("active");
+
+        // Update cursor
+        whiteboardCanvas.style.cursor =
+          tool === "eraser" ? "grab" : "crosshair";
+      }
+
+      // Set drawing color
+      function setColor(color) {
+        currentColor = color;
+        if (whiteboardCtx) {
+          whiteboardCtx.strokeStyle = color;
+        }
+      }
+
+      // Set brush size
+      function setSize(size) {
+        currentSize = parseInt(size);
+        if (whiteboardCtx) {
+          whiteboardCtx.lineWidth = size;
+        }
+      }
+
+      // Clear whiteboard
+      function clearWhiteboard() {
+        if (currentUser?.role !== "teacher") return;
+
+        if (confirm("Are you sure you want to clear the whiteboard?")) {
+          clearCanvas();
+
+          // Clear Yjs document
+          ymap.clear();
+
+          // Notify server
+          if (socket) {
+            socket.emit("whiteboard-clear");
+          }
+        }
+      }
+
+      // Clear canvas
+      function clearCanvas() {
+        if (whiteboardCtx) {
+          whiteboardCtx.clearRect(
+            0,
+            0,
+            whiteboardCanvas.width,
+            whiteboardCanvas.height
+          );
+        }
+      }
+
+      // Toggle whiteboard visibility
+      function toggleWhiteboard() {
+        whiteboardActive = !whiteboardActive;
+
+        const slideArea = document.getElementById("slideArea");
+        const whiteboardContainer = document.getElementById(
+          "whiteboardContainer"
+        );
+        const whiteboardToggle = document.getElementById("whiteboardToggle");
+        const whiteboardControls =
+          document.getElementById("whiteboardControls");
+
+        if (whiteboardActive) {
+          // Show whiteboard
+          slideArea.classList.add("whiteboard-mode");
+          whiteboardContainer.classList.remove("hidden");
+          whiteboardToggle.classList.add("active");
+          whiteboardToggle.textContent = "📋 Slides";
+
+          // Show controls for teachers
+          if (currentUser?.role === "teacher") {
+            whiteboardControls.classList.remove("hidden");
+            whiteboardCanvas.classList.remove("readonly");
+          } else {
+            whiteboardCanvas.classList.add("readonly");
+          }
+
+          // Resize canvas
+          setTimeout(resizeCanvas, 100);
+
+          // Initialize auto-save
+          initializeAutoSave();
+
+          // Notify server
+          if (socket) {
+            socket.emit("whiteboard-toggle", { active: true });
+          }
+        } else {
+          // Show slides
+          slideArea.classList.remove("whiteboard-mode");
+          whiteboardContainer.classList.add("hidden");
+          whiteboardToggle.classList.remove("active");
+          whiteboardToggle.textContent = "🎨 Whiteboard";
+
+          // Notify server
+          if (socket) {
+            socket.emit("whiteboard-toggle", { active: false });
+          }
+        }
+      }
+
+      // Update sync status
+      function updateSyncStatus(status) {
+        const indicator = document.getElementById("syncIndicator");
+        const text = document.getElementById("syncText");
+
+        if (indicator) {
+          indicator.className = `whiteboard-sync-indicator ${status}`;
+        }
+
+        if (text) {
+          const statusTexts = {
+            synced: "Synced",
+            syncing: "Syncing...",
+            error: "Sync Error",
+          };
+          text.textContent = statusTexts[status] || "Unknown";
+        }
+      }
+
+      // Handle whiteboard update from server
+      function handleWhiteboardUpdate(data) {
+        if (currentUser?.role === "teacher") return; // Teachers don't receive their own updates
+
+        try {
+          isSyncing = true;
+          updateSyncStatus("syncing");
+
+          if (ydoc && data.update && Array.isArray(data.update)) {
+            // Yjs mode - apply update to document
+            Y.applyUpdate(ydoc, new Uint8Array(data.update));
+          } else if (data.update && !Array.isArray(data.update)) {
+            // Basic mode - render drawing directly
+            renderDrawing(data.update);
+          }
+
+          // Save state to IndexedDB
+          saveWhiteboardState();
+
+          updateSyncStatus("synced");
+        } catch (error) {
+          console.error("Failed to handle whiteboard update:", error);
+          updateSyncStatus("error");
+        } finally {
+          isSyncing = false;
+        }
+      }
+
+      // Handle whiteboard state from server
+      function handleWhiteboardState(data) {
+        try {
+          isSyncing = true;
+          updateSyncStatus("syncing");
+
+          if (ydoc && data.state) {
+            // Apply complete state to Yjs document
+            Y.applyUpdate(ydoc, new Uint8Array(data.state));
+          }
+
+          updateSyncStatus("synced");
+        } catch (error) {
+          console.error("Failed to handle whiteboard state:", error);
+          updateSyncStatus("error");
+        } finally {
+          isSyncing = false;
+        }
+      }
+
+      // Handle whiteboard clear from server
+      function handleWhiteboardClear() {
+        clearCanvas();
+        if (ymap) {
+          ymap.clear();
+        }
+        showNotification("Whiteboard cleared by teacher");
+      }
+
+      // Handle whiteboard toggle from server
+      function handleWhiteboardToggle(data) {
+        if (data.active !== whiteboardActive) {
+          toggleWhiteboard();
+        }
+      }
+
+      // Handle keyboard shortcuts
+      function handleKeyboardShortcuts(e) {
+        if (!whiteboardActive || currentUser?.role !== "teacher") return;
+
+        // Ctrl+Z for undo (if we implement it)
+        if (e.ctrlKey && e.key === "z") {
+          e.preventDefault();
+          // TODO: Implement undo functionality
+          showNotification("Undo functionality coming soon!");
+        }
+
+        // Ctrl+E for eraser
+        if (e.ctrlKey && e.key === "e") {
+          e.preventDefault();
+          setTool("eraser");
+        }
+
+        // Ctrl+B for brush
+        if (e.ctrlKey && e.key === "b") {
+          e.preventDefault();
+          setTool("brush");
+        }
+
+        // Ctrl+Delete for clear
+        if (e.ctrlKey && e.key === "Delete") {
+          e.preventDefault();
+          clearWhiteboard();
+        }
+      }
+
+      // Auto-save whiteboard state periodically
+      function startAutoSave() {
+        setInterval(() => {
+          if (whiteboardActive && ydoc) {
+            saveWhiteboardState();
+          }
+        }, 30000); // Save every 30 seconds
+      }
+
+      // Initialize auto-save when whiteboard is first activated
+      function initializeAutoSave() {
+        if (!window.whiteboardAutoSaveInitialized) {
+          startAutoSave();
+          window.whiteboardAutoSaveInitialized = true;
+        }
+      }
+
+      // =============================================================================
+      // Debugging and Utility Functions
+      // =============================================================================
+
+      function debugSlideState() {
+        console.log("=== SLIDE DEBUG INFO ===");
+        console.log("Current slide number:", currentSlideNumber);
+        console.log("Total slides:", totalSlides);
+        console.log("Slides array:", slides);
+        console.log("Current user:", currentUser);
+
+        // Check DOM elements
+        const slideImg = document.getElementById("currentSlide");
+        const noSlideMsg = document.getElementById("noSlideMessage");
+
+        console.log("Slide image element:", slideImg);
+        console.log("No slide message element:", noSlideMsg);
+
+        if (slideImg) {
+          console.log("Slide image src:", slideImg.src);
+          console.log("Slide image classes:", slideImg.className);
+        }
+
+        console.log("========================");
+      }
+
+      // Add this to window for debugging in console
+      window.debugSlideState = debugSlideState;
+
+      // Handle page visibility changes to manage connections
+      document.addEventListener("visibilitychange", function () {
+        if (
+          document.hidden &&
+          isAudioStreaming &&
+          currentUser?.role === "teacher"
+        ) {
+          console.log("Page hidden, maintaining audio connection");
+        } else if (!document.hidden && isAudioStreaming) {
+          console.log("Page visible, audio connection active");
+        }
+      });
+
+      // Clean up on page unload
+      window.addEventListener("beforeunload", function () {
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+        }
+        peerConnections.forEach((pc) => pc.close());
+        if (socket) {
+          socket.disconnect();
+        }
+      });
+    </script>
+  </body>
 </html>
