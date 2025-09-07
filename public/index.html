@@ -658,6 +658,17 @@
                 ⬅️ Previous
               </button>
               <button class="next-btn" onclick="nextSlide()">➡️ Next</button>
+
+              <!-- Resources: Upload (teacher only) -->
+              <input
+                id="resourceUpload"
+                type="file"
+                style="display: none"
+                onchange="handleResourceUpload(event)"
+              />
+              <button class="upload-btn" onclick="triggerResourceUpload()">
+                📦 Upload Resource
+              </button>
             </div>
 
             <!-- Whiteboard Toggle (Visible to All) -->
@@ -716,6 +727,12 @@
               <button onclick="sendMessage()">Send</button>
             </div>
           </div>
+
+          <!-- Resources Panel (visible to all) -->
+          <div class="participants" style="margin-top: 16px">
+            <h3>📚 Resources</h3>
+            <div id="resourcesList"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -757,6 +774,8 @@
         initializeSocket();
         setupChatEnterKey();
         initializeWhiteboard();
+        // Fetch current resources and render + cache
+        initResourcesIndex();
       };
 
       // Socket initialization
@@ -882,6 +901,29 @@
         socket.on("whiteboard-state", handleWhiteboardState);
         socket.on("whiteboard-clear", handleWhiteboardClear);
         socket.on("whiteboard-toggle", handleWhiteboardToggle);
+
+        // Offline resources: when teacher adds a resource, ask SW to cache it
+        socket.on("resource-added", (resource) => {
+          console.log("Resource announced:", resource);
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "CACHE_RESOURCE_URLS",
+              payload: { urls: [resource.url] },
+            });
+          }
+          addResourceToList(resource);
+        });
+
+        socket.on("resource-removed", (resource) => {
+          console.log("Resource removed:", resource);
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "DELETE_RESOURCE_URLS",
+              payload: { urls: [resource.url] },
+            });
+          }
+          removeResourceFromList(resource);
+        });
       }
 
       function loadSlides(slideData) {
@@ -938,6 +980,8 @@
         // Show teacher controls if user is teacher
         if (role === "teacher") {
           document.getElementById("teacherControls").style.display = "flex";
+          // Ensure existing resources display remove buttons
+          ensureTeacherActionsOnResources();
         }
 
         console.log(`Joined as ${role}: ${name}`);
@@ -2111,6 +2155,219 @@
           socket.disconnect();
         }
       });
+
+      // Resources: upload flow (teacher)
+      function triggerResourceUpload() {
+        if (!currentUser || currentUser.role !== "teacher") {
+          alert("Only teachers can upload resources");
+          return;
+        }
+        const input = document.getElementById("resourceUpload");
+        if (input) input.click();
+      }
+
+      function handleResourceUpload(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        const form = new FormData();
+        form.append("file", file);
+
+        fetch("/upload-resource", { method: "POST", body: form })
+          .then((r) => {
+            if (!r.ok) throw new Error("Upload failed");
+            return r.json();
+          })
+          .then((data) => {
+            const res = data && data.resource;
+            if (res) {
+              // Add to list immediately; SW caching also triggered by socket echo
+              addResourceToList(res);
+              if (
+                navigator.serviceWorker &&
+                navigator.serviceWorker.controller
+              ) {
+                navigator.serviceWorker.controller.postMessage({
+                  type: "CACHE_RESOURCE_URLS",
+                  payload: { urls: [res.url] },
+                });
+              }
+            }
+            // Reset input
+            event.target.value = "";
+          })
+          .catch((err) => {
+            console.error("Resource upload failed", err);
+            alert("Resource upload failed: " + err.message);
+          });
+      }
+
+      // Resources: initial index load and cache
+      function initResourcesIndex() {
+        fetch("/resources-index")
+          .then((r) => r.json())
+          .then((data) => {
+            const list = (data && data.resources) || [];
+            // Render
+            const container = document.getElementById("resourcesList");
+            if (container) container.innerHTML = "";
+            list.forEach(addResourceToList);
+            // Ask SW to cache all
+            const urls = list.map((x) => x.url);
+            if (
+              urls.length &&
+              navigator.serviceWorker &&
+              navigator.serviceWorker.controller
+            ) {
+              navigator.serviceWorker.controller.postMessage({
+                type: "CACHE_RESOURCE_URLS",
+                payload: { urls },
+              });
+            }
+          })
+          .catch(() => {});
+      }
+
+      function addResourceToList(res) {
+        const list = document.getElementById("resourcesList");
+        if (!list || !res) return;
+        const key = `${res.id || ""}:${res.name || res.safeName || res.url}`;
+        // Prevent duplicates (e.g., immediate add after upload + socket echo)
+        const alreadyExists = Array.from(list.children || []).some(
+          (n) => n.dataset && n.dataset.key === key
+        );
+        if (alreadyExists) {
+          // Ensure teacher controls exist on the existing row
+          if (currentUser && currentUser.role === "teacher") {
+            ensureTeacherActionsOnResources();
+          }
+          return;
+        }
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.justifyContent = "space-between";
+        row.style.gap = "8px";
+        row.style.marginBottom = "6px";
+        row.dataset.key = key;
+        if (res.id) row.dataset.id = res.id;
+        if (res.name || res.safeName)
+          row.dataset.name = res.name || res.safeName;
+        if (res.url) row.dataset.url = res.url;
+
+        const nameEl = document.createElement("div");
+        nameEl.style.flex = "1";
+        nameEl.style.wordBreak = "break-all";
+        nameEl.textContent = res.name || res.safeName || res.url;
+
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "6px";
+        actions.setAttribute("data-actions", "true");
+
+        const downloadBtn = document.createElement("a");
+        downloadBtn.href = res.url;
+        downloadBtn.textContent = "Download";
+        downloadBtn.setAttribute("download", res.safeName || "");
+        downloadBtn.style.textDecoration = "none";
+        downloadBtn.style.padding = "6px 10px";
+        downloadBtn.style.border = "1px solid #ddd";
+        downloadBtn.style.borderRadius = "6px";
+        downloadBtn.style.background = "#f8f8f8";
+
+        actions.appendChild(downloadBtn);
+
+        if (currentUser && currentUser.role === "teacher") {
+          appendRemoveButton(actions, res);
+        }
+
+        row.appendChild(nameEl);
+        row.appendChild(actions);
+        list.appendChild(row);
+      }
+
+      function removeResourceFromList(res) {
+        const list = document.getElementById("resourcesList");
+        if (!list || !res) return;
+        const key = `${res.id || ""}:${res.name || res.safeName || res.url}`;
+        const nodes = Array.from(list.children);
+        for (const n of nodes) {
+          if (n.dataset && n.dataset.key === key) {
+            n.remove();
+            break;
+          }
+        }
+      }
+
+      function deleteResource(res) {
+        if (!res || !res.id || !res.name) {
+          // Try to extract id/name from URL: /resources/:id/:name
+          try {
+            const parts = (res.url || "").split("/").filter(Boolean);
+            const idx = parts.indexOf("resources");
+            res.id = res.id || parts[idx + 1];
+            res.name = res.name || parts[idx + 2];
+          } catch {}
+        }
+        if (!res.id || !res.name) return alert("Invalid resource");
+
+        fetch(
+          `/resources/${encodeURIComponent(res.id)}/${encodeURIComponent(
+            res.name
+          )}`,
+          { method: "DELETE" }
+        )
+          .then((r) => {
+            if (!r.ok) throw new Error("Delete failed");
+            removeResourceFromList(res);
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: "DELETE_RESOURCE_URLS",
+                payload: { urls: [res.url] },
+              });
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to delete resource", err);
+            alert("Failed to delete resource: " + err.message);
+          });
+      }
+
+      function appendRemoveButton(actionsEl, res) {
+        const removeBtn = document.createElement("button");
+        removeBtn.textContent = "Remove";
+        removeBtn.style.padding = "6px 10px";
+        removeBtn.style.border = "none";
+        removeBtn.style.borderRadius = "6px";
+        removeBtn.style.background = "#ff6b6b";
+        removeBtn.style.color = "#fff";
+        removeBtn.onclick = () => deleteResource(res);
+        actionsEl.appendChild(removeBtn);
+      }
+
+      function ensureTeacherActionsOnResources() {
+        try {
+          if (!(currentUser && currentUser.role === "teacher")) return;
+          const list = document.getElementById("resourcesList");
+          if (!list) return;
+          const rows = Array.from(list.children || []);
+          rows.forEach((row) => {
+            const actions = row.querySelector('[data-actions="true"]');
+            if (!actions) return;
+            const hasRemove = Array.from(actions.children).some(
+              (el) => el.tagName === "BUTTON"
+            );
+            if (!hasRemove) {
+              const res = {
+                id: row.dataset.id,
+                name: row.dataset.name,
+                url: row.dataset.url,
+              };
+              appendRemoveButton(actions, res);
+            }
+          });
+        } catch (_) {}
+      }
     </script>
   </body>
 </html>
