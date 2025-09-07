@@ -20,6 +20,8 @@ const io = socketIo(server, {
 
 // Add this line after your other middleware (before your routes)
 app.use('/slides', express.static(path.join(__dirname, 'slides')));
+// Serve downloadable resources
+app.use('/resources', express.static(path.join(__dirname, 'resources')));
 
 // app.use('/slides', (req, res, next) => {
 //   console.log('🔍 Slide request:', req.url);
@@ -207,6 +209,118 @@ const upload = multer({
     } else {
       cb(new Error('Unsupported file type'), false);
     }
+  }
+});
+
+// Upload and publish downloadable resources (any file)
+app.post('/upload-resource', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const resourceId = uuidv4();
+    const resourcesBase = path.join(__dirname, 'resources', resourceId);
+    if (!fs.existsSync(resourcesBase)) {
+      fs.mkdirSync(resourcesBase, { recursive: true });
+    }
+
+    const originalName = file.originalname;
+    const safeName = sanitizeFilename(originalName);
+    const targetPath = path.join(resourcesBase, safeName);
+
+    // Move from uploads temp to resources
+    fs.renameSync(file.path, targetPath);
+
+    const url = `/resources/${resourceId}/${safeName}`;
+    const stats = fs.statSync(targetPath);
+
+    // Notify all connected clients (students) to cache this resource
+    const payload = {
+      id: resourceId,
+      name: originalName,
+      safeName,
+      url,
+      size: stats.size,
+      mime: req.headers['content-type'] || 'application/octet-stream',
+      timestamp: Date.now()
+    };
+    io.emit('resource-added', payload);
+
+    return res.json({ success: true, resource: payload });
+  } catch (error) {
+    console.error('Upload resource error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to upload resource' });
+  } finally {
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+  }
+});
+
+// Delete a resource (teacher action)
+app.delete('/resources/:id/:name', (req, res) => {
+  try {
+    const { id, name } = req.params;
+    const dir = path.join(__dirname, 'resources', id);
+    const filePath = path.join(dir, name);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Resource not found' });
+    }
+
+    fs.unlinkSync(filePath);
+
+    // If directory is now empty, remove it
+    try {
+      const remaining = fs.readdirSync(dir);
+      if (remaining.length === 0) fs.rmdirSync(dir);
+    } catch {}
+
+    const url = `/resources/${id}/${name}`;
+    io.emit('resource-removed', { id, name, url, timestamp: Date.now() });
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('Delete resource error:', e);
+    return res.status(500).json({ error: e.message || 'Failed to delete resource' });
+  }
+});
+
+// List available resources for initial load
+app.get('/resources-index', (req, res) => {
+  try {
+    const resourcesDir = path.join(__dirname, 'resources');
+    if (!fs.existsSync(resourcesDir)) return res.json({ resources: [] });
+
+    const dirs = fs.readdirSync(resourcesDir).filter(name => {
+      try { return fs.statSync(path.join(resourcesDir, name)).isDirectory(); } catch { return false; }
+    });
+
+    const resources = [];
+    dirs.forEach(dir => {
+      const dirPath = path.join(resourcesDir, dir);
+      const files = fs.readdirSync(dirPath);
+      files.forEach(file => {
+        const filePath = path.join(dirPath, file);
+        try {
+          const stat = fs.statSync(filePath);
+          resources.push({
+            id: dir,
+            name: file,
+            url: `/resources/${dir}/${file}`,
+            size: stat.size,
+            mtimeMs: stat.mtimeMs
+          });
+        } catch {}
+      });
+    });
+
+    // Sort by modified time desc
+    resources.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    res.json({ resources });
+  } catch (e) {
+    res.status(500).json({ error: e.message || 'Failed to read resources' });
   }
 });
 
@@ -643,6 +757,28 @@ function convertPptToPdf(inputPath, outputPath) {
   });
 }
 
+// Remove all slide directories immediately (used when teacher leaves)
+function clearSlidesDirectory() {
+  try {
+    const slidesDir = path.join(__dirname, 'slides');
+    if (!fs.existsSync(slidesDir)) return;
+    const entries = fs.readdirSync(slidesDir);
+    entries.forEach(entry => {
+      const p = path.join(slidesDir, entry);
+      try {
+        const st = fs.statSync(p);
+        if (st.isDirectory()) {
+          fs.rmSync(p, { recursive: true, force: true });
+        }
+      } catch (e) {
+        console.error('Failed to remove slide directory:', p, e.message);
+      }
+    });
+  } catch (e) {
+    console.error('clearSlidesDirectory error:', e.message);
+  }
+}
+
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
   
@@ -719,6 +855,23 @@ io.on('connection', (socket) => {
       
       // Notify all clients about updated participant list
       io.emit('participants-updated', classroomState.participants);
+
+      // If the teacher left, clear generated slides immediately
+      if (client.role === 'teacher') {
+        try {
+          // Reset slide state
+          classroomState.slideData = [];
+          classroomState.totalSlides = 0;
+          classroomState.currentSlide = 0;
+          classroomState.preloadedSlides = new Set();
+          // Clear slide files on disk
+          clearSlidesDirectory();
+          // Optionally notify clients so UI can react if needed
+          io.emit('slides-cleared', { timestamp: Date.now() });
+        } catch (e) {
+          console.error('Error clearing slides after teacher left:', e.message);
+        }
+      }
     }
   });
 
@@ -872,7 +1025,7 @@ server.listen(PORT, () => {
   console.log(`📚 Open multiple tabs to test teacher/student interaction`);
   
   // Create necessary directories
-  const dirs = ['uploads', 'slides'];
+  const dirs = ['uploads', 'slides', 'resources'];
   dirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
