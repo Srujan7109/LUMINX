@@ -1,0 +1,110 @@
+/* Container */
+.dashboard-container {
+  margin-left: 260px; /* push content away from sidebar */
+  padding: 2rem;
+  background: #f9f9f9;
+  min-height: 100vh;
+  transition: margin-left 0.3s ease;
+}
+
+/* Adjust when sidebar collapsed */
+.sidebar.collapsed ~ .dashboard-container {
+  margin-left: 100px; /* smaller space for collapsed nav */
+}
+
+/* Title */
+.dashboard-title {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: #333;
+}
+
+/* Subjects grid */
+.subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Subject Card */
+/* Subject Card */
+.subject-card {
+  padding: 2rem;
+  border-radius: 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-align: center;
+  color: #000000;
+  cursor: pointer;
+  backdrop-filter: blur(15px); /* stronger glass effect */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3); /* subtle frosted border */
+}
+
+.subject-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+  opacity: 0.95;
+}
+
+/* Different colors with more transparency */
+.math {
+  background: rgba(0, 123, 255, 0.5); /* Blue */
+}
+.science {
+  background: rgba(40, 167, 69, 0.5); /* Green */
+}
+.english {
+  background: rgba(255, 193, 7, 0.5); /* Yellow */
+  color: #333;
+}
+.history {
+  background: rgba(220, 53, 69, 0.5); /* Red */
+}
+.cs {
+  background: rgba(111, 66, 193, 0.5); /* Purple */
+}
+
+/* Join Class special card */
+.join-class {
+  background: linear-gradient(135deg, #007bff, #00c6ff);
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.join-class:hover {
+  background: linear-gradient(135deg, #0056b3, #0088cc);
+  transform: scale(1.05);
+  box-shadow: 0 6px 15px rgba(0, 123, 255, 0.4);
+}
+/* Calendar container */
+.calendar-container {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Heading */
+.calendar-container h2 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  color: #007bff;
+}
+
+/* Center text */
+.calendar-container p {
+  margin-top: 1rem;
+  font-weight: 500;
+  color: #333;
+}
