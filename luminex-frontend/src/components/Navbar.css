@@ -1,5 +1,5 @@
 /* Sidebar Navbar */
-.sidebar {
+.navbar-sidebar {
   position: fixed;
   top: 0;
   left: 0;
@@ -13,10 +13,11 @@
   padding: 1.5rem 1rem;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
   transition: width 0.3s ease;
+  z-index: 1000; /* stays on top */
 }
 
 /* Collapsed state */
-.sidebar.collapsed {
+.navbar-sidebar.collapsed {
   width: 80px;
 }
 
@@ -41,7 +42,7 @@
 }
 
 /* Logo */
-.sidebar-logo {
+.navbar-logo {
   font-size: 1.6rem;
   font-weight: bold;
   text-align: center;
@@ -50,7 +51,7 @@
 }
 
 /* Links */
-.sidebar-links {
+.navbar-links {
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -59,7 +60,7 @@
   margin: 0;
 }
 
-.sidebar-links a {
+.navbar-links a {
   text-decoration: none;
   color: white;
   font-size: 1.1rem;
@@ -72,13 +73,13 @@
   justify-content: flex-start;
 }
 
-.sidebar-links a:hover {
+.navbar-links a:hover {
   background: rgba(255, 255, 255, 0.2);
   padding-left: 1.2rem;
 }
 
 /* Logout */
-.sidebar-logout {
+.navbar-logout {
   background: #ff5252;
   border: none;
   color: white;
@@ -90,19 +91,19 @@
   transition: background 0.3s ease;
 }
 
-.sidebar-logout:hover {
+.navbar-logout:hover {
   background: #e53935;
 }
 
 /* Collapsed links - icons only */
-.sidebar.collapsed .sidebar-links a {
+.navbar-sidebar.collapsed .navbar-links a {
   justify-content: center;
   font-size: 1.3rem;
   padding: 0.5rem;
 }
 
 /* Collapsed logo */
-.sidebar.collapsed .sidebar-logo {
+.navbar-sidebar.collapsed .navbar-logo {
   font-size: 1.8rem;
   text-align: center;
   margin-top: -10px;

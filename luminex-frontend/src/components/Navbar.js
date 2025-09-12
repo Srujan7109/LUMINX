@@ -12,17 +12,17 @@ const Navbar = ({ role = "student" }) => {
   };
 
   return (
-    <nav className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+    <nav className={`navbar-sidebar ${collapsed ? "collapsed" : ""}`}>
       {/* Collapse / Expand Button */}
       <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
         {collapsed ? "➡️" : "⬅️"}
       </button>
 
       {/* Logo / App Name */}
-      <div className="sidebar-logo">📘 {!collapsed && "Luminex"}</div>
+      <div className="navbar-logo">📘 {!collapsed && "Luminex"}</div>
 
       {/* Navigation Links */}
-      <ul className="sidebar-links">
+      <ul className="navbar-links">
         <li>
           <Link
             to={
@@ -52,7 +52,7 @@ const Navbar = ({ role = "student" }) => {
       </ul>
 
       {/* Logout Button */}
-      <button onClick={handleLogout} className="sidebar-logout">
+      <button onClick={handleLogout} className="navbar-logout">
         {collapsed ? "🚪" : "Logout"}
       </button>
     </nav>

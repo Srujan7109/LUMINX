@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Navbar from "../components/Navbar.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./StudentDashboard.css";
@@ -8,12 +8,17 @@ import "./StudentDashboard.css";
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const [date, setDate] = useState(new Date());
+  const location = useLocation();
+  const { username, role } = location.state || {}; // 👈 receive data
 
   return (
     <>
       <Navbar role="student" />
       <div className="dashboard-container">
-        <h1 className="dashboard-title">Welcome Student 🎓</h1>
+        <h1 className="dashboard-title">
+          Welcome {username}! 🎓
+          <p>You are logged in as: {role}</p>
+        </h1>
 
         {/* ✅ Calendar Section */}
         <div className="calendar-container">
@@ -34,7 +39,11 @@ export default function StudentDashboard() {
 
           <div
             className="subject-card join-class"
-            onClick={() => navigate("/live-meet")}
+            onClick={() =>
+              navigate("/live-meet", {
+                state: { username: username || "Student", role: "student" },
+              })
+            }
           >
             ➕ Join Class
           </div>

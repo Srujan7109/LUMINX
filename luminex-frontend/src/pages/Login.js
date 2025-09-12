@@ -4,19 +4,22 @@ import "./Login.css";
 
 const Login = () => {
   const [role, setRole] = useState("student");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(""); // ✅ added username
+  const [password, setPassword] = useState(""); // optional for prototype
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!username || !password) {
       alert("Please fill in all fields");
       return;
     }
+
+    const userData = { role, username };
+
     role === "teacher"
-      ? navigate("/teacher-dashboard")
-      : navigate("/student-dashboard");
+      ? navigate("/teacher-dashboard", { state: userData })
+      : navigate("/student-dashboard", { state: userData });
   };
 
   return (
@@ -27,19 +30,19 @@ const Login = () => {
         <p className="login-subtitle">Sign in to continue learning</p>
 
         <form onSubmit={handleSubmit} className="login-form">
-          <label>Email</label>
+          <label>Username</label>
           <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            placeholder="Enter your name"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             required
           />
 
           <label>Password</label>
           <input
             type="password"
-            placeholder="Enter your password"
+            placeholder="Enter any password (prototype only)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

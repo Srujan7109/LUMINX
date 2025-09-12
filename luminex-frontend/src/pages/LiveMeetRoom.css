@@ -1,129 +1,186 @@
-.live-room {
+.container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f4f7fb;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9fafb;
+  color: #333;
 }
 
-.live-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: linear-gradient(90deg, #4facfe, #00f2fe);
-  color: white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+/* Status bar */
+.status {
+  padding: 10px;
+  font-weight: bold;
+  text-align: center;
+  background: #ddd;
+}
+.status.connected {
+  background: #d1fae5;
+  color: #065f46;
+}
+.status.disconnected {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
-.leave-btn {
-  background: #ff5252;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 0.4rem;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.leave-btn:hover {
-  background: #e53935;
-}
-
-.live-content {
+/* Main classroom layout */
+.classroom {
   display: flex;
   flex: 1;
+  flex-direction: row;
+  overflow: hidden;
 }
 
-/* PPT Section */
-.ppt-section {
-  flex: 3;
+/* Main content (LEFT) */
+.main-content {
+  flex: 1;
+  min-width: 0;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  gap: 20px;
+  overflow-y: auto;
 }
 
-.ppt-display {
+.slide-area {
   flex: 1;
-  background: white;
-  border-radius: 0.8rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
-  color: #555;
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  padding: 20px;
+  background: white;
+  margin-bottom: 15px;
+  min-height: 300px;
+  overflow: hidden; /* ✅ prevent overflow */
 }
 
-.ppt-controls {
-  margin-top: 1rem;
+.slide-content {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* ✅ scale while keeping aspect ratio */
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Slide controls */
+.slide-controls {
   display: flex;
-  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+.teacher-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.teacher-controls input[type="file"] {
+  display: none;
 }
 
-.upload-btn {
-  background: #007bff;
-  padding: 0.6rem 1.2rem;
-  border-radius: 0.4rem;
+/* Audio controls */
+.audio-controls {
+  margin-top: 15px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.audio-on {
+  background: #dc2626;
   color: white;
-  cursor: pointer;
-  font-weight: 500;
 }
-
-.audio-btn {
-  background: #4caf50;
-  padding: 0.6rem 1.2rem;
-  border-radius: 0.4rem;
+.audio-off {
+  background: #16a34a;
   color: white;
-  cursor: pointer;
-  font-weight: 500;
-}
-.audio-btn:hover {
-  background: #388e3c;
 }
 
-/* Chat Section */
-.chat-section {
-  flex: 1;
-  border-left: 2px solid #ddd;
+/* Sidebar (RIGHT) */
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: #f3f4f6;
+  border-left: 1px solid #ddd;
   display: flex;
   flex-direction: column;
-  background: white;
-  padding: 1rem;
-}
-
-.chat-box {
-  flex: 1;
+  padding: 10px;
   overflow-y: auto;
-  margin-bottom: 1rem;
+}
+.sidebar h3 {
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: #111827;
 }
 
-.chat-message {
-  padding: 0.4rem;
-  margin-bottom: 0.5rem;
-  background: #f1f1f1;
-  border-radius: 0.4rem;
+/* Participants */
+.participants {
+  margin-bottom: 20px;
+}
+.participants div {
+  margin: 4px 0;
+  padding: 6px;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+/* Chat */
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+.chat-messages {
+  flex: 1;
+  padding: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.chat-messages div {
+  margin-bottom: 5px; /* ✅ spacing between messages */
+}
 .chat-input {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
 }
-
 .chat-input input {
   flex: 1;
-  padding: 0.6rem;
+  padding: 6px 10px;
+  border-radius: 6px;
   border: 1px solid #ccc;
-  border-radius: 0.4rem;
 }
-
 .chat-input button {
-  background: #007bff;
+  padding: 6px 12px;
   border: none;
-  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  background: #2563eb;
   color: white;
-  border-radius: 0.4rem;
   cursor: pointer;
 }
 .chat-input button:hover {
-  background: #0056b3;
+  background: #1d4ed8;
+}
+
+/* Resources */
+.resources div {
+  margin: 6px 0;
+  padding: 6px;
+  background: white;
+  border-radius: 4px;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.resources a {
+  text-decoration: none;
+  color: #2563eb;
+  font-weight: 500;
+}
+.resources a:hover {
+  text-decoration: underline;
 }

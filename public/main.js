@@ -1,0 +1,1042 @@
+// Register Service Worker for offline caching
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      console.log("Service Worker registered:", reg.scope);
+    } catch (e) {
+      console.warn("Service Worker registration failed", e);
+    }
+  });
+}
+// Global variables
+let socket = null;
+let currentUser = null;
+let currentSlideNumber = 0;
+let totalSlides = 0;
+let slides = [];
+let isAudioStreaming = false;
+let localStream = null;
+let peerConnections = new Map(); // Store multiple peer connections for students
+
+// WebRTC configuration for low-bandwidth audio
+const rtcConfiguration = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ],
+};
+
+// Audio constraints optimized for low bandwidth
+const audioConstraints = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    sampleRate: 16000, // Lower sample rate for bandwidth efficiency
+    sampleSize: 16,
+    channelCount: 1, // Mono audio
+  },
+  video: false,
+};
+
+// Initialize connection when page loads
+window.onload = function () {
+  console.log("Page loaded, initializing socket connection...");
+  initializeSocket();
+  setupChatEnterKey();
+  // Fetch current resources and render + cache
+  initResourcesIndex();
+};
+
+// Socket initialization
+function initializeSocket() {
+  socket = io();
+
+  socket.on("connect", () => {
+    updateStatus("connected", "Connected");
+    showConnectedMessage();
+  });
+
+  socket.on("disconnect", () => {
+    updateStatus("disconnected", "Disconnected");
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+      localStream = null;
+    }
+    peerConnections.forEach((pc) => pc.close());
+    peerConnections.clear();
+  });
+
+  // Handle upload process events
+  socket.on("upload-started", (data) => {
+    console.log("Upload started:", data.filename);
+    showNotification(`Processing ${data.filename}...`);
+    // Clear previous slides
+    slides = [];
+    totalSlides = 0;
+    currentSlideNumber = 0;
+
+    // Hide current slide and show loading message
+    document.getElementById("noSlideMessage").style.display = "block";
+    document.getElementById("currentSlide").classList.add("hidden");
+  });
+
+  socket.on("total-slides", (data) => {
+    totalSlides = data.totalSlides;
+    slides = new Array(totalSlides).fill(null); // Pre-allocate array with nulls
+    console.log(`📊 Expecting ${totalSlides} slides`);
+    showNotification(`Loading ${totalSlides} slides...`);
+  });
+
+  socket.on("slide-ready", (data) => {
+    console.log("✅ New slide ready:", data);
+    slides[data.index] = data.url;
+
+    // Display first slide immediately when ready
+    if (data.index === 0) {
+      currentSlideNumber = 0;
+      displaySlide(data.url);
+      updateSlideInfo();
+      showNotification("First slide ready!");
+    }
+  });
+
+  socket.on("upload-complete", (data) => {
+    console.log("✅ Upload complete:", data.totalSlides);
+    showNotification(`All ${data.totalSlides} slides loaded successfully!`);
+
+    // Ensure first slide is displayed if not already
+    if (slides[0] && currentSlideNumber === 0) {
+      displaySlide(slides[0]);
+      updateSlideInfo();
+    }
+  });
+
+  // Handle direct slide uploads (for compatibility)
+  socket.on("slide-uploaded", (data) => {
+    console.log("🔍 Frontend: Received slide-uploaded:", data);
+
+    const slideData = data.slideData || [];
+    slides = slideData.map((slide) => slide.url || slide);
+    totalSlides = slides.length;
+    currentSlideNumber = 0;
+
+    console.log("🔍 Frontend: Extracted slide URLs:", slides);
+
+    if (slides.length > 0) {
+      displaySlide(slides[currentSlideNumber]);
+      updateSlideInfo();
+      showNotification("Teacher uploaded new slides");
+    }
+  });
+
+  socket.on("slide-changed", (data) => {
+    currentSlideNumber = data.slideNumber;
+    if (slides[currentSlideNumber]) {
+      displaySlide(slides[currentSlideNumber]);
+    }
+    updateSlideInfo();
+    showNotification(`Teacher changed to slide ${currentSlideNumber + 1}`);
+  });
+
+  socket.on("new-message", (message) => {
+    displayMessage(message);
+  });
+
+  socket.on("teacher-left", () => {
+    showNotification("Teacher has left the classroom", "warning");
+    // Stop audio if teacher leaves
+    if (currentUser?.role === "student" && isAudioStreaming) {
+      updateAudioStatus("stopped", "Audio: Teacher disconnected");
+      peerConnections.forEach((pc) => pc.close());
+      peerConnections.clear();
+    }
+  });
+
+  // WebRTC signaling handlers
+  socket.on("webrtc-offer", handleWebRTCOffer);
+  socket.on("webrtc-answer", handleWebRTCAnswer);
+  socket.on("webrtc-ice-candidate", handleWebRTCIceCandidate);
+
+  // Handle classroom state updates
+  socket.on("classroom-state", updateClassroomState);
+  socket.on("participants-updated", updateParticipantsList);
+
+  // Offline resources: when teacher adds a resource, ask SW to cache it
+  socket.on("resource-added", (resource) => {
+    console.log("Resource announced:", resource);
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "CACHE_RESOURCE_URLS",
+        payload: { urls: [resource.url] },
+      });
+    }
+    addResourceToList(resource);
+  });
+
+  socket.on("resource-removed", (resource) => {
+    console.log("Resource removed:", resource);
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "DELETE_RESOURCE_URLS",
+        payload: { urls: [resource.url] },
+      });
+    }
+    removeResourceFromList(resource);
+  });
+}
+
+function loadSlides(slideData) {
+  console.log("🔍 Frontend: Loading slides:", slideData);
+
+  // Convert slide objects to URL array
+  slides = slideData.map((slide) => slide.url || slide);
+  currentSlideNumber = 0;
+  totalSlides = slides.length;
+
+  console.log("🔍 Frontend: Processed slides:", slides);
+
+  if (slides.length > 0) {
+    document.getElementById("noSlideMessage").style.display = "none";
+    document.getElementById("currentSlide").classList.remove("hidden");
+    showSlide(currentSlideNumber);
+  } else {
+    document.getElementById("noSlideMessage").style.display = "block";
+    document.getElementById("currentSlide").classList.add("hidden");
+  }
+}
+
+// Resources: upload flow (teacher)
+function triggerResourceUpload() {
+  if (!currentUser || currentUser.role !== "teacher") {
+    alert("Only teachers can upload resources");
+    return;
+  }
+  const input = document.getElementById("resourceUpload");
+  if (input) input.click();
+}
+
+function handleResourceUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const form = new FormData();
+  form.append("file", file);
+
+  fetch("/upload-resource", { method: "POST", body: form })
+    .then((r) => {
+      if (!r.ok) throw new Error("Upload failed");
+      return r.json();
+    })
+    .then((data) => {
+      const res = data && data.resource;
+      if (res) {
+        // Add to list immediately; SW caching also triggered by socket echo
+        addResourceToList(res);
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "CACHE_RESOURCE_URLS",
+            payload: { urls: [res.url] },
+          });
+        }
+      }
+      // Reset input
+      event.target.value = "";
+    })
+    .catch((err) => {
+      console.error("Resource upload failed", err);
+      alert("Resource upload failed: " + err.message);
+    });
+}
+
+// Resources: initial index load and cache
+function initResourcesIndex() {
+  fetch("/resources-index")
+    .then((r) => r.json())
+    .then((data) => {
+      const list = (data && data.resources) || [];
+      // Render
+      const container = document.getElementById("resourcesList");
+      if (container) container.innerHTML = "";
+      list.forEach(addResourceToList);
+      // Ask SW to cache all
+      const urls = list.map((x) => x.url);
+      if (
+        urls.length &&
+        navigator.serviceWorker &&
+        navigator.serviceWorker.controller
+      ) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "CACHE_RESOURCE_URLS",
+          payload: { urls },
+        });
+      }
+    })
+    .catch(() => {});
+}
+
+function addResourceToList(res) {
+  const list = document.getElementById("resourcesList");
+  if (!list || !res) return;
+  const key = `${res.id || ""}:${res.name || res.safeName || res.url}`;
+  // Prevent duplicates (e.g., immediate add after upload + socket echo)
+  const alreadyExists = Array.from(list.children || []).some(
+    (n) => n.dataset && n.dataset.key === key
+  );
+  if (alreadyExists) {
+    // Ensure teacher controls exist on the existing row
+    if (currentUser && currentUser.role === "teacher") {
+      ensureTeacherActionsOnResources();
+    }
+    return;
+  }
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.alignItems = "center";
+  row.style.justifyContent = "space-between";
+  row.style.gap = "8px";
+  row.style.marginBottom = "6px";
+  row.dataset.key = key;
+  if (res.id) row.dataset.id = res.id;
+  if (res.name || res.safeName) row.dataset.name = res.name || res.safeName;
+  if (res.url) row.dataset.url = res.url;
+
+  const nameEl = document.createElement("div");
+  nameEl.style.flex = "1";
+  nameEl.style.wordBreak = "break-all";
+  nameEl.textContent = res.name || res.safeName || res.url;
+
+  const actions = document.createElement("div");
+  actions.style.display = "flex";
+  actions.style.gap = "6px";
+  actions.setAttribute("data-actions", "true");
+
+  const downloadBtn = document.createElement("a");
+  downloadBtn.href = res.url;
+  downloadBtn.textContent = "Download";
+  downloadBtn.setAttribute("download", res.safeName || "");
+  downloadBtn.style.textDecoration = "none";
+  downloadBtn.style.padding = "6px 10px";
+  downloadBtn.style.border = "1px solid #ddd";
+  downloadBtn.style.borderRadius = "6px";
+  downloadBtn.style.background = "#f8f8f8";
+
+  actions.appendChild(downloadBtn);
+
+  if (currentUser && currentUser.role === "teacher") {
+    appendRemoveButton(actions, res);
+  }
+
+  row.appendChild(nameEl);
+  row.appendChild(actions);
+  list.appendChild(row);
+}
+
+function removeResourceFromList(res) {
+  const list = document.getElementById("resourcesList");
+  if (!list || !res) return;
+  const key = `${res.id || ""}:${res.name || res.safeName || res.url}`;
+  const nodes = Array.from(list.children);
+  for (const n of nodes) {
+    if (n.dataset && n.dataset.key === key) {
+      n.remove();
+      break;
+    }
+  }
+}
+
+function deleteResource(res) {
+  if (!res || !res.id || !res.name) {
+    // Try to extract id/name from URL: /resources/:id/:name
+    try {
+      const parts = (res.url || "").split("/").filter(Boolean);
+      const idx = parts.indexOf("resources");
+      res.id = res.id || parts[idx + 1];
+      res.name = res.name || parts[idx + 2];
+    } catch {}
+  }
+  if (!res.id || !res.name) return alert("Invalid resource");
+
+  fetch(
+    `/resources/${encodeURIComponent(res.id)}/${encodeURIComponent(res.name)}`,
+    { method: "DELETE" }
+  )
+    .then((r) => {
+      if (!r.ok) throw new Error("Delete failed");
+      removeResourceFromList(res);
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "DELETE_RESOURCE_URLS",
+          payload: { urls: [res.url] },
+        });
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to delete resource", err);
+      alert("Failed to delete resource: " + err.message);
+    });
+}
+
+function appendRemoveButton(actionsEl, res) {
+  const removeBtn = document.createElement("button");
+  removeBtn.textContent = "Remove";
+  removeBtn.style.padding = "6px 10px";
+  removeBtn.style.border = "none";
+  removeBtn.style.borderRadius = "6px";
+  removeBtn.style.background = "#ff6b6b";
+  removeBtn.style.color = "#fff";
+  removeBtn.onclick = () => deleteResource(res);
+  actionsEl.appendChild(removeBtn);
+}
+
+function ensureTeacherActionsOnResources() {
+  try {
+    if (!(currentUser && currentUser.role === "teacher")) return;
+    const list = document.getElementById("resourcesList");
+    if (!list) return;
+    const rows = Array.from(list.children || []);
+    rows.forEach((row) => {
+      const actions = row.querySelector('[data-actions="true"]');
+      if (!actions) return;
+      const hasRemove = Array.from(actions.children).some(
+        (el) => el.tagName === "BUTTON"
+      );
+      if (!hasRemove) {
+        const res = {
+          id: row.dataset.id,
+          name: row.dataset.name,
+          url: row.dataset.url,
+        };
+        appendRemoveButton(actions, res);
+      }
+    });
+  } catch (_) {}
+}
+
+function showSlide(slideIndex) {
+  if (slides[slideIndex]) {
+    displaySlide(slides[slideIndex]);
+    updateSlideInfo();
+
+    // Preload next slide for better performance
+    if (slides[slideIndex + 1]) {
+      const preload = new Image();
+      preload.src = slides[slideIndex + 1];
+    }
+  }
+}
+
+function joinClassroom() {
+  const name = document.getElementById("nameInput").value.trim();
+  const role = document.getElementById("roleSelect").value;
+
+  if (!name) {
+    alert("Please enter your name");
+    return;
+  }
+
+  currentUser = { name, role };
+
+  // Send join request to server
+  socket.emit("join-classroom", { name, role });
+
+  // Show classroom interface
+  document.getElementById("joinForm").style.display = "none";
+  document.getElementById("classroom").style.display = "grid";
+
+  // Show teacher controls if user is teacher
+  if (role === "teacher") {
+    document.getElementById("teacherControls").style.display = "flex";
+    // Ensure existing resources display remove buttons
+    ensureTeacherActionsOnResources();
+  }
+
+  console.log(`Joined as ${role}: ${name}`);
+}
+
+function updateStatus(status, text) {
+  const statusEl = document.getElementById("status");
+  if (statusEl) {
+    statusEl.className = `status ${status}`;
+    statusEl.textContent = text;
+  }
+}
+
+function updateClassroomState(state) {
+  console.log("🔍 Frontend: Received classroom state:", state);
+
+  currentSlideNumber = state.currentSlide || 0;
+  totalSlides = state.totalSlides || 0;
+
+  // Handle slideData properly
+  if (state.slideData && Array.isArray(state.slideData)) {
+    slides = state.slideData.map((slide) => slide.url || slide);
+    console.log("🔍 Frontend: State slides:", slides);
+  }
+
+  if (slides.length > 0 && slides[currentSlideNumber]) {
+    displaySlide(slides[currentSlideNumber]);
+  }
+
+  updateSlideInfo();
+  if (state.participants) {
+    updateParticipantsList(state.participants);
+  }
+}
+
+function updateParticipantsList(participants) {
+  const listEl = document.getElementById("participantsList");
+  const countEl = document.getElementById("participantCount");
+
+  if (listEl) {
+    listEl.innerHTML = "";
+  }
+  if (countEl) {
+    countEl.textContent = participants.length;
+  }
+
+  participants.forEach((participant) => {
+    const div = document.createElement("div");
+    div.className = `participant ${participant.role}`;
+    div.textContent = `${participant.role === "teacher" ? "👨‍🏫" : "👨‍🎓"} ${
+      participant.name
+    }`;
+    if (listEl) {
+      listEl.appendChild(div);
+    }
+  });
+}
+
+function updateSlideInfo() {
+  const slideInfoEl = document.getElementById("slideInfo");
+  if (slideInfoEl) {
+    slideInfoEl.textContent = `Slide ${currentSlideNumber + 1} of ${
+      totalSlides || 1
+    }`;
+  }
+}
+
+function displaySlide(slideUrl) {
+  console.log("🖼️ Frontend: Attempting to display slide:", slideUrl);
+
+  const slideImg = document.getElementById("currentSlide");
+  const noSlideMsg = document.getElementById("noSlideMessage");
+
+  if (!slideUrl) {
+    console.log("❌ Frontend: No slide URL provided");
+    if (slideImg) slideImg.classList.add("hidden");
+    if (noSlideMsg) noSlideMsg.style.display = "block";
+    return;
+  }
+
+  if (slideImg) {
+    console.log("🔍 Frontend: Setting image src to:", slideUrl);
+
+    // Add load event listener
+    slideImg.onload = function () {
+      console.log("✅ Frontend: Image loaded successfully:", slideUrl);
+
+      // Preload next slide in the background
+      if (slides && slides[currentSlideNumber + 1]) {
+        const nextUrl = slides[currentSlideNumber + 1];
+        console.log("📥 Preloading next slide:", nextUrl);
+        const preload = new Image();
+        preload.src = nextUrl;
+      }
+    };
+
+    // Enhanced error handling
+    slideImg.onerror = function (event) {
+      console.error("❌ Frontend: Failed to load slide:", slideUrl);
+      console.error("❌ Frontend: Error event:", event);
+
+      // Try to fetch the URL to see what the actual error is
+      fetch(slideUrl)
+        .then((response) => {
+          console.log("🔍 Frontend: Fetch test status:", response.status);
+          if (!response.ok) {
+            console.error(
+              "❌ Frontend: Server returned:",
+              response.status,
+              response.statusText
+            );
+          }
+        })
+        .catch((fetchError) => {
+          console.error("❌ Frontend: Fetch error:", fetchError);
+        });
+
+      this.classList.add("hidden");
+      if (noSlideMsg) noSlideMsg.style.display = "block";
+    };
+
+    slideImg.src = slideUrl;
+    slideImg.classList.remove("hidden");
+  }
+
+  if (noSlideMsg) noSlideMsg.style.display = "none";
+}
+
+function nextSlide() {
+  if (currentUser?.role === "teacher" && currentSlideNumber < totalSlides - 1) {
+    currentSlideNumber++;
+    if (slides[currentSlideNumber]) {
+      displaySlide(slides[currentSlideNumber]);
+    }
+    updateSlideInfo();
+
+    // Notify students
+    socket.emit("change-slide", { slideNumber: currentSlideNumber });
+  }
+}
+
+function previousSlide() {
+  if (currentUser?.role === "teacher" && currentSlideNumber > 0) {
+    currentSlideNumber--;
+    if (slides[currentSlideNumber]) {
+      displaySlide(slides[currentSlideNumber]);
+    }
+    updateSlideInfo();
+
+    // Notify students
+    socket.emit("change-slide", { slideNumber: currentSlideNumber });
+  }
+}
+
+function triggerFileUpload() {
+  if (!currentUser) {
+    alert("Please join the classroom first");
+    return;
+  }
+
+  if (currentUser.role !== "teacher") {
+    alert("Only teachers can upload slides");
+    return;
+  }
+
+  const fileInput = document.getElementById("slideUpload");
+  if (fileInput) {
+    fileInput.click();
+  } else {
+    console.error("File input element not found");
+  }
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file || currentUser?.role !== "teacher") return;
+
+  console.log("📤 Frontend: Uploading file:", file.name);
+  showNotification("Uploading slides...", "info");
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  fetch("/upload", { method: "POST", body: formData })
+    .then((res) => {
+      console.log("📤 Frontend: Upload response status:", res.status);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then((data) => {
+      console.log("📤 Frontend: Upload response data:", data);
+
+      if (data.slides && Array.isArray(data.slides)) {
+        // Convert slide objects to URLs
+        slides = data.slides.map((slide) => slide.url || slide);
+        currentSlideNumber = 0;
+        totalSlides = slides.length;
+
+        console.log("📤 Frontend: Processed uploaded slides:", slides);
+
+        if (slides.length > 0) {
+          displaySlide(slides[0]);
+          updateSlideInfo();
+          showNotification("Slides uploaded successfully!");
+        } else {
+          throw new Error("No slides in response");
+        }
+      } else {
+        console.error("❌ Frontend: Invalid response format:", data);
+        throw new Error("Invalid response format");
+      }
+    })
+    .catch((err) => {
+      console.error("❌ Frontend: Upload failed:", err);
+      alert("Upload failed: " + err.message);
+    });
+}
+
+// Chat functionality
+function sendMessage() {
+  const chatInput = document.getElementById("chatInput");
+  if (!chatInput) return;
+
+  const message = chatInput.value.trim();
+
+  if (message && socket && currentUser) {
+    socket.emit("send-message", {
+      text: message,
+      sender: currentUser.name,
+      role: currentUser.role,
+    });
+    chatInput.value = "";
+  }
+}
+
+function setupChatEnterKey() {
+  const chatInput = document.getElementById("chatInput");
+  if (chatInput) {
+    chatInput.addEventListener("keypress", function (e) {
+      if (e.key === "Enter") {
+        sendMessage();
+      }
+    });
+  }
+}
+
+function displayMessage(message) {
+  const messagesEl = document.getElementById("chatMessages");
+  if (!messagesEl) return;
+
+  const messageDiv = document.createElement("div");
+  messageDiv.className = `message ${message.role}`;
+
+  messageDiv.innerHTML = `
+        <div class="message-header">${message.sender} (${message.role})</div>
+        <div class="message-content">${escapeHtml(message.text)}</div>
+    `;
+
+  messagesEl.appendChild(messageDiv);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function showNotification(text, type = "info") {
+  const notification = document.createElement("div");
+  notification.style.cssText = `
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        padding: 10px 15px;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        z-index: 1000;
+        background: ${
+          type === "warning"
+            ? "#ff9800"
+            : type === "error"
+            ? "#f44336"
+            : "#4CAF50"
+        };
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    `;
+  notification.textContent = text;
+
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.remove();
+    }
+  }, 3000);
+}
+
+function showConnectedMessage() {
+  const messages = [
+    "🎉 Connected! You can now join the classroom.",
+    "✨ Connection established successfully!",
+    "🚀 Ready to start learning!",
+  ];
+
+  const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+  showNotification(randomMessage);
+}
+
+// =============================================================================
+// WebRTC Audio Streaming (Low-bandwidth with Opus codec)
+// =============================================================================
+
+async function startAudio() {
+  if (currentUser?.role !== "teacher") {
+    alert("Only teacher can start audio streaming");
+    return;
+  }
+
+  if (isAudioStreaming) {
+    console.log("Audio already streaming");
+    return;
+  }
+
+  try {
+    // Get user media with optimized audio settings
+    localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+
+    console.log("Got local audio stream");
+
+    // Update UI
+    const startBtn = document.getElementById("startAudioBtn");
+    const stopBtn = document.getElementById("stopAudioBtn");
+    if (startBtn) startBtn.classList.add("hidden");
+    if (stopBtn) stopBtn.classList.remove("hidden");
+
+    updateAudioStatus("streaming", "Audio: Streaming 🔴");
+
+    isAudioStreaming = true;
+
+    // Create peer connections for all current students
+    await createPeerConnectionsForStudents();
+  } catch (error) {
+    console.error("Error accessing microphone:", error);
+    alert("Could not access microphone. Please check permissions.");
+    updateAudioStatus("error", "Audio: Error accessing microphone");
+  }
+}
+
+function stopAudio() {
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+  }
+
+  // Close all peer connections
+  peerConnections.forEach((pc) => {
+    pc.close();
+  });
+  peerConnections.clear();
+
+  // Update UI
+  const startBtn = document.getElementById("startAudioBtn");
+  const stopBtn = document.getElementById("stopAudioBtn");
+  if (startBtn) startBtn.classList.remove("hidden");
+  if (stopBtn) stopBtn.classList.add("hidden");
+
+  updateAudioStatus("stopped", "Audio: Stopped");
+
+  isAudioStreaming = false;
+
+  // Notify students that audio has stopped
+  socket.emit("audio-stopped");
+
+  console.log("Audio streaming stopped");
+}
+
+function updateAudioStatus(status, text) {
+  const statusEl = document.getElementById("audioStatus");
+  if (statusEl) {
+    statusEl.className = `audio-status ${status}`;
+    statusEl.textContent = text;
+  }
+}
+
+async function createPeerConnectionsForStudents() {
+  if (!localStream) {
+    console.error("No local stream available");
+    return;
+  }
+
+  try {
+    // Create a single peer connection for broadcasting
+    const peerConnection = new RTCPeerConnection(rtcConfiguration);
+
+    // Add local audio stream to peer connection
+    localStream.getTracks().forEach((track) => {
+      peerConnection.addTrack(track, localStream);
+    });
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc-ice-candidate", {
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log("Connection state:", peerConnection.connectionState);
+      if (peerConnection.connectionState === "failed") {
+        console.error("WebRTC connection failed");
+        updateAudioStatus("error", "Audio: Connection failed");
+      }
+    };
+
+    // Create and send offer
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+
+    socket.emit("webrtc-offer", { offer: offer });
+
+    // Store the peer connection
+    peerConnections.set("broadcast", peerConnection);
+
+    console.log("Created WebRTC offer for audio streaming");
+  } catch (error) {
+    console.error("Error creating peer connection:", error);
+    updateAudioStatus("error", "Audio: Failed to create connection");
+  }
+}
+
+// Handle incoming WebRTC offer (students receive this)
+async function handleWebRTCOffer(data) {
+  if (currentUser?.role !== "student") return;
+
+  console.log("Received WebRTC offer from teacher");
+
+  try {
+    const peerConnection = new RTCPeerConnection(rtcConfiguration);
+
+    // Handle incoming audio stream
+    peerConnection.ontrack = (event) => {
+      console.log("Received remote audio stream");
+      const remoteAudio = new Audio();
+      remoteAudio.srcObject = event.streams[0];
+      remoteAudio.autoplay = true;
+
+      // Handle audio play promise
+      remoteAudio.play().catch((error) => {
+        console.error("Error playing audio:", error);
+        updateAudioStatus("error", "Audio: Playback error");
+      });
+
+      updateAudioStatus("receiving", "Audio: Receiving from teacher 🔊");
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc-ice-candidate", {
+          candidate: event.candidate,
+          targetId: data.senderId,
+        });
+      }
+    };
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log("Student connection state:", peerConnection.connectionState);
+      if (
+        peerConnection.connectionState === "disconnected" ||
+        peerConnection.connectionState === "failed"
+      ) {
+        updateAudioStatus("stopped", "Audio: Connection lost");
+      }
+    };
+
+    // Set remote description and create answer
+    await peerConnection.setRemoteDescription(data.offer);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    // Send answer back to teacher
+    socket.emit("webrtc-answer", {
+      answer: answer,
+      targetId: data.senderId,
+    });
+
+    // Store the peer connection
+    peerConnections.set(data.senderId || "teacher", peerConnection);
+  } catch (error) {
+    console.error("Error handling WebRTC offer:", error);
+    updateAudioStatus("error", "Audio: Connection error");
+  }
+}
+
+// Handle WebRTC answer (teacher receives this)
+async function handleWebRTCAnswer(data) {
+  if (currentUser?.role !== "teacher") return;
+
+  console.log("Received WebRTC answer from student");
+
+  try {
+    const peerConnection = peerConnections.get("broadcast");
+    if (peerConnection && peerConnection.signalingState !== "stable") {
+      await peerConnection.setRemoteDescription(data.answer);
+    }
+  } catch (error) {
+    console.error("Error handling WebRTC answer:", error);
+  }
+}
+
+// Handle ICE candidates
+async function handleWebRTCIceCandidate(data) {
+  console.log("Received ICE candidate");
+
+  if (!data.candidate) return;
+
+  try {
+    let peerConnection;
+    if (currentUser?.role === "teacher") {
+      peerConnection = peerConnections.get("broadcast");
+    } else {
+      peerConnection = peerConnections.get(data.senderId || "teacher");
+    }
+
+    if (peerConnection && peerConnection.remoteDescription) {
+      await peerConnection.addIceCandidate(data.candidate);
+    } else {
+      console.log("Peer connection not ready for ICE candidate");
+    }
+  } catch (error) {
+    console.error("Error adding ICE candidate:", error);
+  }
+}
+
+// =============================================================================
+// Debugging and Utility Functions
+// =============================================================================
+
+function debugSlideState() {
+  console.log("=== SLIDE DEBUG INFO ===");
+  console.log("Current slide number:", currentSlideNumber);
+  console.log("Total slides:", totalSlides);
+  console.log("Slides array:", slides);
+  console.log("Current user:", currentUser);
+
+  // Check DOM elements
+  const slideImg = document.getElementById("currentSlide");
+  const noSlideMsg = document.getElementById("noSlideMessage");
+
+  console.log("Slide image element:", slideImg);
+  console.log("No slide message element:", noSlideMsg);
+
+  if (slideImg) {
+    console.log("Slide image src:", slideImg.src);
+    console.log("Slide image classes:", slideImg.className);
+  }
+
+  console.log("========================");
+}
+
+// Add this to window for debugging in console
+window.debugSlideState = debugSlideState;
+
+// Handle page visibility changes to manage connections
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden && isAudioStreaming && currentUser?.role === "teacher") {
+    console.log("Page hidden, maintaining audio connection");
+  } else if (!document.hidden && isAudioStreaming) {
+    console.log("Page visible, audio connection active");
+  }
+});
+
+// Clean up on page unload
+window.addEventListener("beforeunload", function () {
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+  }
+  peerConnections.forEach((pc) => pc.close());
+  if (socket) {
+    socket.disconnect();
+  }
+});
