@@ -47,7 +47,7 @@ const Navbar = ({ role = "student" }) => {
           <Link to="/profile">{collapsed ? "👤" : "Profile"}</Link>
         </li>
         <li>
-          <Link to="/profile">{collapsed ? "❓" : "Ai Help"}</Link>
+          <Link to="/ai-help">{collapsed ? "❓" : "Ai Help"}</Link>
         </li>
       </ul>
 

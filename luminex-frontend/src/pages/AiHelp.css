@@ -1,0 +1,129 @@
+.aihelp-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  padding: 16px;
+  background: #f3f4f6;
+  font-family: 'Inter', sans-serif;
+}
+
+.aihelp-chat-area {
+  display: flex;
+  width: 100%;
+  max-width: 1000px;
+  height: 80vh;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.aihelp-chat {
+  flex: 2;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.aihelp-input-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: #f9fafb;
+}
+
+.aihelp-header {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-align: center;
+  color: #111827;
+}
+
+.aihelp-message {
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 90%;
+  word-wrap: break-word;
+}
+
+.aihelp-message.user {
+  background: #3b82f6;
+  color: white;
+  align-self: flex-end;
+}
+
+.aihelp-message.bot {
+  background: #e5e7eb;
+  color: #111827;
+  align-self: flex-start;
+}
+
+.sender-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.aihelp-input-area {
+  display: flex;
+  gap: 8px;
+}
+
+.aihelp-input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  resize: none;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.aihelp-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.aihelp-button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 10px;
+  background-color: #3b82f6;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.aihelp-button:hover {
+  background-color: #2563eb;
+}
+
+.aihelp-button:active {
+  transform: scale(0.98);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .aihelp-chat-area {
+    flex-direction: column;
+    height: 90vh;
+  }
+
+  .aihelp-chat {
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+    height: 60%;
+  }
+
+  .aihelp-input-panel {
+    height: 40%;
+  }
+}
