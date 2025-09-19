@@ -1,235 +1,544 @@
-// Minimal whiteboard that syncs over Socket.IO without Yjs
-(function () {
-  let canvas, ctx;
-  let isDrawing = false;
-  let currentTool = "brush";
-  let currentColor = "#000000";
-  let currentSize = 3;
-  let lastX = 0,
-    lastY = 0;
+// This script assumes 'socket' and 'currentUser' are available in the global scope.
+// It also depends on Yjs and idb libraries being loaded if available.
 
-  function $(id) {
-    return document.getElementById(id);
-  }
+// =============================================================================
+// Whiteboard Functionality
+// =============================================================================
 
-  function resizeCanvas() {
-    const container = $("whiteboardContainer");
-    if (!container || !canvas) return;
-    const rect = container.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    if (ctx) {
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = currentColor;
-      ctx.lineWidth = currentSize;
+// Whiteboard state
+let whiteboardActive = false;
+let whiteboardCanvas = null;
+let whiteboardCtx = null;
+let isDrawing = false;
+let currentTool = "brush";
+let currentColor = "#000000";
+let currentSize = 3;
+let lastX = 0;
+let lastY = 0;
+let whiteboardMode = "off"; // New state: 'off', 'board', or 'overlay'
+
+// Yjs document for collaborative editing
+let ydoc = null;
+let ymap = null;
+let isSyncing = false;
+
+// IndexedDB for offline persistence
+let db = null;
+
+// Initialize whiteboard when page loads
+function initializeWhiteboard() {
+  whiteboardCanvas = document.getElementById("whiteboardCanvas");
+  if (!whiteboardCanvas) return;
+
+  whiteboardCtx = whiteboardCanvas.getContext("2d");
+
+  // Set canvas size to match container
+  resizeCanvas();
+
+  // Check if Yjs is available (assuming it's loaded via a separate script tag if used)
+  if (typeof Y === "undefined") {
+    console.error(
+      "Yjs library not loaded. Whiteboard will work in a basic online mode."
+    );
+    showNotification(
+      "Collaboration libraries not loaded. Whiteboard is in basic mode.",
+      "warning"
+    );
+    // Initialize without Yjs for basic functionality
+    initializeBasicWhiteboard();
+  } else {
+    // Initialize Yjs document
+    initializeYjs();
+    // Initialize IndexedDB
+    if (typeof idb !== "undefined") {
+      initializeIndexedDB();
     }
   }
 
-  function isActive() {
-    const whiteboardContainer = document.getElementById("whiteboardContainer");
-    return (
-      whiteboardContainer && !whiteboardContainer.classList.contains("hidden")
+  // Set up event listeners
+  setupWhiteboardEventListeners();
+
+  console.log("Whiteboard initialized");
+}
+
+// Resize canvas to match container
+function resizeCanvas() {
+  if (!whiteboardCanvas) return;
+
+  const container = document.getElementById("whiteboardContainer");
+  if (!container) return;
+
+  // Make the canvas drawing buffer size match its display size
+  const rect = container.getBoundingClientRect();
+  whiteboardCanvas.width = rect.width;
+  whiteboardCanvas.height = rect.height;
+
+  // Set default drawing properties
+  if (whiteboardCtx) {
+    whiteboardCtx.lineCap = "round";
+    whiteboardCtx.lineJoin = "round";
+    whiteboardCtx.strokeStyle = currentColor;
+    whiteboardCtx.lineWidth = currentSize;
+  }
+}
+
+// Initialize basic whiteboard without Yjs (fallback mode)
+function initializeBasicWhiteboard() {
+  console.log("Initializing basic whiteboard mode");
+}
+
+// Initialize Yjs document for collaborative editing
+function initializeYjs() {
+  ydoc = new Y.Doc();
+  ymap = ydoc.getMap("whiteboard");
+
+  // Listen for changes from other clients
+  ymap.observe((event) => {
+    if (isSyncing) return; // Prevent infinite loops
+
+    event.changes.keys.forEach((change, key) => {
+      if (change.action === "add" || change.action === "update") {
+        const drawingData = ymap.get(key);
+        if (drawingData) {
+          renderDrawing(drawingData);
+        }
+      } else if (change.action === "delete") {
+        clearCanvas();
+      }
+    });
+  });
+
+  // Listen for document updates to sync with server
+  ydoc.on("update", (update) => {
+    if (socket && currentUser?.role === "teacher") {
+      socket.emit("whiteboard-update", {
+        update: Array.from(update),
+        timestamp: Date.now(),
+      });
+    }
+  });
+}
+
+// Initialize IndexedDB for offline persistence
+async function initializeIndexedDB() {
+  try {
+    db = await idb.openDB("whiteboard-db", 1, {
+      upgrade(db) {
+        db.createObjectStore("whiteboard-state");
+      },
+    });
+    await loadWhiteboardState();
+  } catch (error) {
+    console.error("Failed to initialize IndexedDB:", error);
+  }
+}
+
+// Save whiteboard state to IndexedDB
+async function saveWhiteboardState() {
+  if (!db || !ymap) return;
+  try {
+    const state = {
+      canvasData: whiteboardCanvas.toDataURL(),
+      ymapData: Y.encodeStateAsUpdate(ydoc),
+      timestamp: Date.now(),
+    };
+    await db.put("whiteboard-state", state, "current");
+  } catch (error) {
+    console.error("Failed to save whiteboard state:", error);
+  }
+}
+
+// Load whiteboard state from IndexedDB
+async function loadWhiteboardState() {
+  if (!db || !ymap) return;
+  try {
+    const state = await db.get("whiteboard-state", "current");
+    if (state) {
+      const img = new Image();
+      img.onload = () => {
+        if (whiteboardCtx) {
+          whiteboardCtx.clearRect(
+            0,
+            0,
+            whiteboardCanvas.width,
+            whiteboardCanvas.height
+          );
+          whiteboardCtx.drawImage(img, 0, 0);
+        }
+      };
+      img.src = state.canvasData;
+      if (state.ymapData) {
+        Y.applyUpdate(ydoc, new Uint8Array(state.ymapData));
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load whiteboard state:", error);
+  }
+}
+
+// Set up whiteboard event listeners
+function setupWhiteboardEventListeners() {
+  if (!whiteboardCanvas) return;
+  whiteboardCanvas.addEventListener("mousedown", startDrawing);
+  whiteboardCanvas.addEventListener("mousemove", draw);
+  whiteboardCanvas.addEventListener("mouseup", stopDrawing);
+  whiteboardCanvas.addEventListener("mouseout", stopDrawing);
+  whiteboardCanvas.addEventListener("touchstart", handleTouch, {
+    passive: false,
+  });
+  whiteboardCanvas.addEventListener("touchmove", handleTouch, {
+    passive: false,
+  });
+  whiteboardCanvas.addEventListener("touchend", stopDrawing);
+
+  document
+    .getElementById("brushTool")
+    ?.addEventListener("click", () => setTool("brush"));
+  document
+    .getElementById("eraserTool")
+    ?.addEventListener("click", () => setTool("eraser"));
+  document
+    .getElementById("colorPicker")
+    ?.addEventListener("change", (e) => setColor(e.target.value));
+  document
+    .getElementById("sizeSlider")
+    ?.addEventListener("input", (e) => setSize(e.target.value));
+  document
+    .getElementById("clearBoard")
+    ?.addEventListener("click", clearWhiteboard);
+  document.addEventListener("keydown", handleKeyboardShortcuts);
+  window.addEventListener("resize", resizeCanvas);
+}
+
+// Handle touch events
+function handleTouch(e) {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const mouseEvent = new MouseEvent(
+    e.type === "touchstart"
+      ? "mousedown"
+      : e.type === "touchmove"
+      ? "mousemove"
+      : "mouseup",
+    { clientX: touch.clientX, clientY: touch.clientY }
+  );
+  whiteboardCanvas.dispatchEvent(mouseEvent);
+}
+
+// Start drawing
+function startDrawing(e) {
+  if (currentUser?.role !== "teacher") return;
+  isDrawing = true;
+  const rect = whiteboardCanvas.getBoundingClientRect();
+  lastX = e.clientX - rect.left;
+  lastY = e.clientY - rect.top;
+}
+
+// --- ERASER FIX: This function is updated to handle erasing in real-time ---
+// Draw
+function draw(e) {
+  if (!isDrawing || currentUser?.role !== "teacher") return;
+
+  const rect = whiteboardCanvas.getBoundingClientRect();
+  const currentX = e.clientX - rect.left;
+  const currentY = e.clientY - rect.top;
+
+  // Save the current context state
+  whiteboardCtx.save();
+
+  // Set the composite operation based on the current tool for erasing
+  whiteboardCtx.globalCompositeOperation =
+    currentTool === "eraser" ? "destination-out" : "source-over";
+
+  whiteboardCtx.beginPath();
+  whiteboardCtx.moveTo(lastX, lastY);
+  whiteboardCtx.lineTo(currentX, currentY);
+  whiteboardCtx.stroke();
+
+  // Restore the context to its previous state
+  whiteboardCtx.restore();
+
+  const drawingData = {
+    type: "line",
+    startX: lastX,
+    startY: lastY,
+    endX: currentX,
+    endY: currentY,
+    color: currentColor,
+    size: currentSize,
+    tool: currentTool,
+    timestamp: Date.now(),
+  };
+
+  if (ymap) {
+    const key = `drawing_${Date.now()}_${Math.random()}`;
+    ymap.set(key, drawingData);
+  } else {
+    if (socket) {
+      socket.emit("whiteboard-update", {
+        update: drawingData,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  lastX = currentX;
+  lastY = currentY;
+}
+
+// Stop drawing
+function stopDrawing() {
+  isDrawing = false;
+}
+
+// Render drawing from Yjs data or basic data
+function renderDrawing(drawingData) {
+  if (!whiteboardCtx) return;
+  const { type, startX, startY, endX, endY, color, size, tool } = drawingData;
+  if (type === "line") {
+    whiteboardCtx.save();
+    whiteboardCtx.strokeStyle = color;
+    whiteboardCtx.lineWidth = size;
+    whiteboardCtx.globalCompositeOperation =
+      tool === "eraser" ? "destination-out" : "source-over";
+    whiteboardCtx.beginPath();
+    whiteboardCtx.moveTo(startX, startY);
+    whiteboardCtx.lineTo(endX, endY);
+    whiteboardCtx.stroke();
+    whiteboardCtx.restore();
+  }
+}
+
+// Set drawing tool
+function setTool(tool) {
+  currentTool = tool;
+  document
+    .querySelectorAll(".whiteboard-tool")
+    .forEach((el) => el.classList.remove("active"));
+  document.getElementById(tool + "Tool")?.classList.add("active");
+  // Set eraser cursor style
+  whiteboardCanvas.style.cursor = tool === "eraser" ? "cell" : "crosshair";
+}
+
+function setColor(color) {
+  currentColor = color;
+  if (whiteboardCtx) whiteboardCtx.strokeStyle = color;
+}
+
+function setSize(size) {
+  currentSize = parseInt(size);
+  if (whiteboardCtx) whiteboardCtx.lineWidth = size;
+}
+
+function clearWhiteboard() {
+  if (currentUser?.role !== "teacher") return;
+  // Use a custom modal or skip confirm if it causes issues in your environment
+  if (confirm("Are you sure you want to clear the whiteboard?")) {
+    clearCanvas();
+    if (ymap) ymap.clear();
+    if (socket) socket.emit("whiteboard-clear");
+  }
+}
+
+function clearCanvas() {
+  if (whiteboardCtx) {
+    whiteboardCtx.clearRect(
+      0,
+      0,
+      whiteboardCanvas.width,
+      whiteboardCanvas.height
     );
   }
+}
 
-  function setWhiteboardActive(active) {
-    const slideArea = document.getElementById("slideArea");
-    const whiteboardContainer = document.getElementById("whiteboardContainer");
-    const whiteboardToggle = document.getElementById("whiteboardToggle");
-    const whiteboardControls = document.getElementById("whiteboardControls");
-    if (!slideArea || !whiteboardContainer || !whiteboardToggle) return;
+// --- REWRITTEN FUNCTIONALITY: Cycles through off -> board -> overlay ---
+function toggleWhiteboard() {
+  // Cycle through the three modes
+  if (whiteboardMode === "off") {
+    whiteboardMode = "board";
+  } else if (whiteboardMode === "board") {
+    whiteboardMode = "overlay";
+  } else {
+    whiteboardMode = "off";
+  }
+  applyWhiteboardMode(); // Apply the visual changes
 
-    const currentlyActive = isActive();
-    if (active === currentlyActive) {
-      // Still ensure canvas size
-      if (active) setTimeout(resizeCanvas, 50);
-      return;
-    }
+  // Emit the new mode to other clients
+  if (socket) {
+    socket.emit("whiteboard-toggle", { mode: whiteboardMode });
+  }
+}
 
-    if (active) {
+// --- FIXED FUNCTION: Applies visual state without conflicting with other scripts ---
+function applyWhiteboardMode() {
+  const slideArea = document.getElementById("slideArea");
+  const whiteboardContainer = document.getElementById("whiteboardContainer");
+  const whiteboardToggle = document.getElementById("whiteboardToggle");
+  const whiteboardControls = document.getElementById("whiteboardControls");
+  const currentSlide = document.getElementById("currentSlide");
+  const noSlideMessage = document.getElementById("noSlideMessage");
+
+  // Prevent errors if elements aren't found
+  if (
+    !slideArea ||
+    !whiteboardContainer ||
+    !whiteboardToggle ||
+    !whiteboardControls ||
+    !currentSlide ||
+    !noSlideMessage
+  ) {
+    console.error("A critical UI element for the whiteboard is missing.");
+    return;
+  }
+
+  switch (whiteboardMode) {
+    case "board":
+      whiteboardActive = true;
       slideArea.classList.add("whiteboard-mode");
       whiteboardContainer.classList.remove("hidden");
+      whiteboardContainer.style.backgroundColor = "white";
+
+      // Temporarily hide slide content using inline styles
+      currentSlide.style.display = "none";
+      noSlideMessage.style.display = "none";
+
+      whiteboardToggle.textContent = "🎨 Overlay";
       whiteboardToggle.classList.add("active");
+      break;
+
+    case "overlay":
+      whiteboardActive = true;
+      slideArea.classList.add("whiteboard-mode");
+      whiteboardContainer.classList.remove("hidden");
+      whiteboardContainer.style.backgroundColor = "transparent";
+
+      // Remove inline style to let CSS classes control visibility again
+      currentSlide.style.display = "";
+      noSlideMessage.style.display = "";
+
       whiteboardToggle.textContent = "📋 Slides";
-      if (
-        window.currentUser &&
-        window.currentUser.role === "teacher" &&
-        whiteboardControls
-      ) {
-        whiteboardControls.classList.remove("hidden");
-        const canvasEl = document.getElementById("whiteboardCanvas");
-        canvasEl && canvasEl.classList.remove("readonly");
-      }
-      setTimeout(() => {
-        resizeCanvas();
-        initWhiteboard();
-      }, 50);
-    } else {
+      whiteboardToggle.classList.add("active");
+      break;
+
+    case "off":
+    default:
+      whiteboardActive = false;
       slideArea.classList.remove("whiteboard-mode");
       whiteboardContainer.classList.add("hidden");
-      whiteboardToggle.classList.remove("active");
+
+      // Remove inline style to let CSS classes control visibility again
+      currentSlide.style.display = "";
+      noSlideMessage.style.display = "";
+
       whiteboardToggle.textContent = "🎨 Whiteboard";
+      whiteboardToggle.classList.remove("active");
+      break;
+  }
+
+  if (whiteboardActive) {
+    if (currentUser?.role === "teacher") {
+      whiteboardControls.classList.remove("hidden");
+      whiteboardCanvas.classList.remove("readonly");
+    } else {
+      whiteboardCanvas.classList.add("readonly");
     }
+    setTimeout(resizeCanvas, 100);
+    initializeAutoSave();
+  } else {
+    whiteboardControls.classList.add("hidden");
   }
+}
 
-  function startDrawing(e) {
-    if (!window.currentUser || window.currentUser.role !== "teacher") return;
-    isDrawing = true;
-    const rect = canvas.getBoundingClientRect();
-    lastX = (e.clientX ?? e.touches?.[0]?.clientX) - rect.left;
-    lastY = (e.clientY ?? e.touches?.[0]?.clientY) - rect.top;
-  }
+function updateSyncStatus(status) {
+  const indicator = document.getElementById("syncIndicator");
+  const text = document.getElementById("syncText");
+  if (indicator) indicator.className = `whiteboard-sync-indicator ${status}`;
+  if (text)
+    text.textContent =
+      { synced: "Synced", syncing: "Syncing...", error: "Sync Error" }[
+        status
+      ] || "Unknown";
+}
 
-  function draw(e) {
-    if (
-      !isDrawing ||
-      !window.currentUser ||
-      window.currentUser.role !== "teacher"
-    )
-      return;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX ?? e.touches?.[0]?.clientX) - rect.left;
-    const y = (e.clientY ?? e.touches?.[0]?.clientY) - rect.top;
-
-    ctx.save();
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = currentSize;
-    ctx.globalCompositeOperation =
-      currentTool === "eraser" ? "destination-out" : "source-over";
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.restore();
-
-    // emit update to students
-    if (window.socket) {
-      window.socket.emit("whiteboard-update", {
-        update: {
-          type: "line",
-          startX: lastX,
-          startY: lastY,
-          endX: x,
-          endY: y,
-          color: currentColor,
-          size: currentSize,
-          tool: currentTool,
-          timestamp: Date.now(),
-        },
-      });
+function handleWhiteboardUpdate(data) {
+  if (currentUser?.role === "teacher") return;
+  try {
+    isSyncing = true;
+    updateSyncStatus("syncing");
+    if (ydoc && data.update && Array.isArray(data.update)) {
+      Y.applyUpdate(ydoc, new Uint8Array(data.update));
+    } else if (data.update && !Array.isArray(data.update)) {
+      renderDrawing(data.update);
     }
-
-    lastX = x;
-    lastY = y;
+    saveWhiteboardState();
+    updateSyncStatus("synced");
+  } catch (error) {
+    console.error("Failed to handle whiteboard update:", error);
+    updateSyncStatus("error");
+  } finally {
+    isSyncing = false;
   }
+}
 
-  function stopDrawing() {
-    isDrawing = false;
-  }
-
-  function handleRemoteUpdate(data) {
-    if (!data) return;
-    const d = data.update || data;
-    if (!ctx || !d) return;
-    if (Array.isArray(d)) return; // ignore Yjs payloads
-    if (d.type === "line") {
-      ctx.save();
-      ctx.strokeStyle = d.color;
-      ctx.lineWidth = d.size;
-      ctx.globalCompositeOperation =
-        d.tool === "eraser" ? "destination-out" : "source-over";
-      ctx.beginPath();
-      ctx.moveTo(d.startX, d.startY);
-      ctx.lineTo(d.endX, d.endY);
-      ctx.stroke();
-      ctx.restore();
+function handleWhiteboardState(data) {
+  try {
+    isSyncing = true;
+    updateSyncStatus("syncing");
+    if (ydoc && data.state) {
+      Y.applyUpdate(ydoc, new Uint8Array(data.state));
     }
+    updateSyncStatus("synced");
+  } catch (error) {
+    console.error("Failed to handle whiteboard state:", error);
+    updateSyncStatus("error");
+  } finally {
+    isSyncing = false;
   }
+}
 
-  function bindControls() {
-    const brush = $("brushTool");
-    const eraser = $("eraserTool");
-    const color = $("colorPicker");
-    const size = $("sizeSlider");
-    const clearBtn = $("clearBoard");
-    brush &&
-      brush.addEventListener("click", () => {
-        currentTool = "brush";
-        canvas.style.cursor = "crosshair";
-      });
-    eraser &&
-      eraser.addEventListener("click", () => {
-        currentTool = "eraser";
-        canvas.style.cursor = "grab";
-      });
-    color &&
-      color.addEventListener("change", (e) => {
-        currentColor = e.target.value;
-        if (ctx) ctx.strokeStyle = currentColor;
-      });
-    size &&
-      size.addEventListener("input", (e) => {
-        currentSize = parseInt(e.target.value || "3", 10);
-        if (ctx) ctx.lineWidth = currentSize;
-      });
-    clearBtn &&
-      clearBtn.addEventListener("click", () => {
-        if (!window.currentUser || window.currentUser.role !== "teacher")
-          return;
-        ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
-        window.socket && window.socket.emit("whiteboard-clear");
-      });
+function handleWhiteboardClear() {
+  clearCanvas();
+  if (ymap) ymap.clear();
+  showNotification("Whiteboard cleared by teacher");
+}
+
+// --- UPDATED FUNCTION: Handles receiving the specific mode from other clients ---
+function handleWhiteboardToggle(data) {
+  if (data.mode !== whiteboardMode) {
+    whiteboardMode = data.mode;
+    applyWhiteboardMode();
   }
+}
 
-  function initWhiteboard() {
-    canvas = $("whiteboardCanvas");
-    if (!canvas) return;
-    ctx = canvas.getContext("2d");
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-
-    // mouse
-    canvas.addEventListener("mousedown", startDrawing);
-    canvas.addEventListener("mousemove", draw);
-    canvas.addEventListener("mouseup", stopDrawing);
-    canvas.addEventListener("mouseout", stopDrawing);
-    // touch
-    canvas.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      startDrawing(e);
-    });
-    canvas.addEventListener("touchmove", (e) => {
-      e.preventDefault();
-      draw(e);
-    });
-    canvas.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      stopDrawing();
-    });
-
-    bindControls();
-
-    if (window.socket) {
-      window.socket.on("whiteboard-update", handleRemoteUpdate);
-      window.socket.on("whiteboard-clear", () => {
-        ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
-      });
-    }
+function handleKeyboardShortcuts(e) {
+  if (!whiteboardActive || currentUser?.role !== "teacher") return;
+  if (e.ctrlKey && e.key === "z") {
+    e.preventDefault();
+    showNotification("Undo coming soon!");
   }
+  if (e.ctrlKey && e.key === "e") {
+    e.preventDefault();
+    setTool("eraser");
+  }
+  if (e.ctrlKey && e.key === "b") {
+    e.preventDefault();
+    setTool("brush");
+  }
+  if (e.ctrlKey && e.key === "Delete") {
+    e.preventDefault();
+    clearWhiteboard();
+  }
+}
 
-  // Expose minimal API
-  window.initializeWhiteboard = initWhiteboard;
-  // Toggle uses idempotent setter and emits desired state
-  window.toggleWhiteboard = function () {
-    const next = !isActive();
-    setWhiteboardActive(next);
-    if (window.socket)
-      window.socket.emit("whiteboard-toggle", { active: next });
-  };
-  // Apply server broadcasts idempotently (prevents double-toggle)
-  window.handleWhiteboardToggle = function (data) {
-    if (!data) return;
-    setWhiteboardActive(!!data.active);
-  };
-})();
+function startAutoSave() {
+  setInterval(() => {
+    if (whiteboardActive && ydoc) saveWhiteboardState();
+  }, 30000); // Save every 30 seconds
+}
+
+function initializeAutoSave() {
+  if (!window.whiteboardAutoSaveInitialized) {
+    startAutoSave();
+    window.whiteboardAutoSaveInitialized = true;
+  }
+}
