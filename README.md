@@ -33,7 +33,7 @@ Meetroom → User info (name and role) should be auto-fetched from localStorage 
 Next Steps
 
 Remove the redundant join form.
-
+take a look at login,dashboard,classroom and app.js file to understand the codebase and resolve the issue
 Ensure role-based UI rendering still works (teacher vs student).
 
 Keep fallback handling in case localStorage is empty (redirect to login).
