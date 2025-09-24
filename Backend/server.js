@@ -21,6 +21,23 @@ const io = socketIo(server, {
 app.use("/slides", express.static(path.join(__dirname, "slides")));
 app.use("/resources", express.static(path.join(__dirname, "resources")));
 
+
+app.use(express.static(path.join(__dirname, "public")));
+
+// Routes
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../Frontend/login.html"));
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "../Frontend/dashboard.html"));
+});
+
+app.get("/classroom", (req, res) => {
+  res.sendFile(path.join(__dirname, "../Frontend/classroom.html"));
+});
+
+
 app.get("/slides/:id/:filename", (req, res) => {
   const { id, filename } = req.params;
   const filePath = path.join(__dirname, "slides", id, filename);
@@ -31,7 +48,7 @@ app.get("/slides/:id/:filename", (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+
 
 // Store classroom state
 let classroomState = {
@@ -48,6 +65,11 @@ let classroomState = {
 let connectedClients = new Map();
 
 const upload = multer({ dest: "uploads/" });
+
+
+
+
+
 
 app.post("/upload-resource", upload.single("file"), async (req, res) => {
   // ... (rest of the function is unchanged)
