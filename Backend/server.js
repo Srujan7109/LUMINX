@@ -8,6 +8,15 @@ const fs = require("fs");
 const sharp = require("sharp");
 const pdfPoppler = require("pdf-poppler");
 const { exec } = require("child_process");
+const mongoose = require("mongoose");
+const User = require("./src/models/User");
+const userRoutes = require("./src/routes/userRoutes");
+require('dotenv').config();
+const connectedClients = new Map();
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.error(err));
 
 const app = express();
 const server = http.createServer(app);
@@ -18,25 +27,61 @@ const io = socketIo(server, {
   },
 });
 
+// CRITICAL: Add these middleware BEFORE your routes
+app.use(express.json()); // Parse JSON bodies - THIS IS ESSENTIAL
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Add CORS if needed for frontend requests
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
+app.use(express.static(path.join(__dirname, '../Frontend')));
+
+// Debug middleware to log requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Request body:', req.body);
+  }
+  next();
+});
+
+// Error handling middleware (add at the end)
+
+
+// Static file serving
 app.use("/slides", express.static(path.join(__dirname, "slides")));
 app.use("/resources", express.static(path.join(__dirname, "resources")));
-
-
 app.use(express.static(path.join(__dirname, "public")));
+
+// API Routes - MUST come after body parsing middleware
+app.use("/api/users", userRoutes);
 
 // Routes
 app.get("/", (req, res) => {
+  res.send("Home Page");
+});
+
+app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "../Frontend/login.html"));
 });
 
-app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "../Frontend/dashboard.html"));
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Frontend/dashboard.html'));
 });
 
 app.get("/classroom", (req, res) => {
+  console.log("Serving classroom.html");
   res.sendFile(path.join(__dirname, "../Frontend/classroom.html"));
 });
-
 
 app.get("/slides/:id/:filename", (req, res) => {
   const { id, filename } = req.params;
@@ -50,19 +95,20 @@ app.get("/slides/:id/:filename", (req, res) => {
 
 
 
-// Store classroom state
+// Rest of your server code (classroom state, socket handlers, etc.)
 let classroomState = {
   currentSlide: 0,
   totalSlides: 0,
   slideData: [],
   isTeacherPresent: false,
   participants: [],
-  whiteboardMode: "off", // <-- FIX: Use 'mode' instead of 'active'
+  whiteboardMode: "off",
   whiteboardState: null,
 };
 
-// Store connected clients
-let connectedClients = new Map();
+// ... rest of your existing code ...
+
+
 
 const upload = multer({ dest: "uploads/" });
 
@@ -400,20 +446,68 @@ function clearSlidesDirectory() {
 io.on("connection", (socket) => {
   console.log(`New client connected: ${socket.id}`);
 
-  socket.on("join-classroom", (data) => {
-    connectedClients.set(socket.id, {
-      role: data.role,
-      name: data.name,
-    });
+  // --- JOIN CLASSROOM ---
+  socket.on("join-classroom", async (data) => {
+    try {
+      console.log("Join classroom request:", data);
+      
+      if (!data || !data.username) {
+        socket.emit("join-error", { message: "Username required" });
+        return;
+      }
 
-    if (data.role === "teacher") {
-      classroomState.isTeacherPresent = true;
+      const user = await User.findOne({ username: data.username });
+      if (!user) {
+        console.log("User not found:", data.username);
+        socket.emit("join-error", { message: "User not found" });
+        return;
+      }
+
+      console.log(`User found: ${user.fullName} (${user.role})`);
+
+      // Store client info with proper user data
+      connectedClients.set(socket.id, {
+        id: socket.id,
+        username: user.username,
+        name: user.fullName,
+        role: user.role,
+        socketId: socket.id
+      });
+
+      // Update teacher presence
+      if (user.role === "teacher") {
+        classroomState.isTeacherPresent = true;
+        console.log("Teacher joined classroom");
+      } else {
+        console.log("Student joined classroom");
+      }
+
+      // Update participants list
+      classroomState.participants = Array.from(connectedClients.values());
+      
+      console.log("Current participants:", classroomState.participants.map(p => `${p.name} (${p.role})`));
+
+      // Send current classroom state to the joining user
+      const stateToSend = {
+        ...classroomState,
+        userRole: user.role,
+        userName: user.fullName
+      };
+
+      socket.emit("classroom-joined", stateToSend);
+      console.log(`Sent classroom state to ${user.fullName}`);
+
+      // Notify ALL clients (including the one who just joined) about updated participants
+      io.emit("participants-updated", classroomState.participants);
+      console.log("Broadcasted participants update to all clients");
+
+    } catch (err) {
+      console.error("Join classroom error:", err);
+      socket.emit("join-error", { message: "Server error during join" });
     }
-    classroomState.participants = Array.from(connectedClients.values());
-
-    socket.emit("classroom-state", classroomState);
-    io.emit("participants-updated", classroomState.participants);
   });
+
+  
 
   socket.on("change-slide", (data) => {
     const client = connectedClients.get(socket.id);
@@ -516,6 +610,16 @@ io.on("connection", (socket) => {
     console.log(`Client disconnected: ${socket.id}`);
   });
 });
+
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  console.error('Stack:', err.stack);
+  res.status(500).json({
+    error: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

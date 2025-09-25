@@ -8,11 +8,19 @@ const resourceRoutes = require("./routes/resources");
 const uploadRoutes = require("./routes/upload");
 const { errorMiddleware } = require("./middleware/errors");
 const fsPromises = require("fs/promises");
+const dotenv = require("dotenv");
+const connectDB = require("./config/db");
+const userRoutes = require("./routes/userRoutes");
+
+dotenv.config();
+connectDB();
 
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 
 // Static
+app.use("/api/users", userRoutes);
 app.use("/slides", express.static(path.join(__dirname, "..", "slides")));
 app.use("/resources", express.static(path.join(__dirname, "..", "resources")));
 app.use(express.static(path.join(__dirname, "..", "public")));
