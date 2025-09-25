@@ -8,6 +8,16 @@ let isAudioStreaming = false;
 let localStream = null;
 let peerConnections = new Map();
 
+// Auto-fetch user info from localStorage and optionally mark body for role
+const userName = localStorage.getItem("name");
+const userRole = localStorage.getItem("role");
+
+if (userRole === "teacher") {
+  document.body.classList.add("teacher");
+} else if (userRole === "student") {
+  document.body.classList.add("student");
+}
+
 // WebRTC configuration
 const rtcConfiguration = {
   iceServers: [
@@ -32,19 +42,69 @@ const audioConstraints = {
 // Initialize connection when page loads
 window.onload = function () {
   console.log("Page loaded, initializing application...");
+
+  // Auto-join if localStorage has user info; otherwise show any join form if present
+  if (userName && userRole) {
+    autoJoinClassroom(userName, userRole);
+  } else {
+    const joinFormEl = document.getElementById("joinForm");
+    if (joinFormEl) joinFormEl.style.display = "block";
+  }
+
   initializeSocket();
   setupChatEnterKey();
   initializeWhiteboard(); // This will call the function from whiteboard.js
   initResourcesIndex();
 };
 
+// Auto-join function using localStorage data or provided values
+function autoJoinClassroom(name, role) {
+  currentUser = { name, role };
+
+  const joinFormEl = document.getElementById("joinForm");
+  if (joinFormEl) joinFormEl.style.display = "none";
+  const classroomEl = document.getElementById("classroom");
+  if (classroomEl) classroomEl.style.display = "grid";
+
+  updateStatus("connected", `Connected as: ${name} (${role})`);
+
+  if (role === "teacher") {
+    const teacherControls = document.getElementById("teacherControls");
+    if (teacherControls) teacherControls.style.display = "flex";
+    ensureTeacherActionsOnResources();
+  }
+
+  if (socket && socket.connected) {
+    socket.emit("join-classroom", { name, role });
+  } else {
+    const joinWhenReady = () => {
+      if (socket && socket.connected) {
+        socket.emit("join-classroom", { name, role });
+        socket.off("connect", joinWhenReady);
+      }
+    };
+    if (socket) socket.on("connect", joinWhenReady);
+  }
+}
+
 // Socket initialization
 function initializeSocket() {
   socket = io();
 
   socket.on("connect", () => {
-    updateStatus("connected", "Connected");
-    showConnectedMessage();
+    if (currentUser) {
+      socket.emit("join-classroom", {
+        name: currentUser.name,
+        role: currentUser.role,
+      });
+      updateStatus(
+        "connected",
+        `Connected as: ${currentUser.name} (${currentUser.role})`
+      );
+    } else {
+      updateStatus("connected", "Connected");
+      showConnectedMessage();
+    }
   });
 
   socket.on("disconnect", () => {

@@ -32,11 +32,11 @@ const audioConstraints = {
 // Initialize connection when page loads
 window.onload = function () {
   console.log("Page loaded, initializing application...");
-  
+
   // Check if user details exist in localStorage
   const storedName = localStorage.getItem("name");
   const storedRole = localStorage.getItem("role");
-  
+
   if (storedName && storedRole) {
     // Auto-join with stored details
     console.log(`Auto-joining classroom as ${storedName} (${storedRole})`);
@@ -46,7 +46,7 @@ window.onload = function () {
     console.log("No stored user details found, showing join form");
     document.getElementById("joinForm").style.display = "block";
   }
-  
+
   initializeSocket();
   setupChatEnterKey();
   initializeWhiteboard(); // This will call the function from whiteboard.js
@@ -56,20 +56,23 @@ window.onload = function () {
 // Auto-join function using localStorage data
 function autoJoinClassroom(name, role) {
   currentUser = { name, role };
-  
+
   // Hide join form and show classroom
-  document.getElementById("joinForm").style.display = "none";
+  const joinFormEl = document.getElementById("joinForm");
+  if (joinFormEl) {
+    joinFormEl.style.display = "none";
+  }
   document.getElementById("classroom").style.display = "grid";
-  
+
   // Update status to show user info
   updateStatus("connected", `Connected as: ${name} (${role})`);
-  
+
   // Show teacher controls if user is a teacher
   if (role === "teacher") {
     document.getElementById("teacherControls").style.display = "flex";
     ensureTeacherActionsOnResources();
   }
-  
+
   // Emit join event when socket is ready
   if (socket && socket.connected) {
     socket.emit("join-classroom", { name, role });
@@ -93,18 +96,21 @@ function initializeSocket() {
 
   socket.on("connect", () => {
     console.log("Socket connected");
-    
+
     // If user is already set (auto-joined), emit join-classroom
     if (currentUser) {
-      socket.emit("join-classroom", { 
-        name: currentUser.name, 
-        role: currentUser.role 
+      socket.emit("join-classroom", {
+        name: currentUser.name,
+        role: currentUser.role,
       });
-      updateStatus("connected", `Connected as: ${currentUser.name} (${currentUser.role})`);
+      updateStatus(
+        "connected",
+        `Connected as: ${currentUser.name} (${currentUser.role})`
+      );
     } else {
       updateStatus("connected", "Connected");
     }
-    
+
     if (!currentUser) {
       showConnectedMessage();
     }
@@ -217,7 +223,10 @@ function joinClassroom() {
   currentUser = { name, role };
   socket.emit("join-classroom", { name, role });
 
-  document.getElementById("joinForm").style.display = "none";
+  const joinFormEl2 = document.getElementById("joinForm");
+  if (joinFormEl2) {
+    joinFormEl2.style.display = "none";
+  }
   document.getElementById("classroom").style.display = "grid";
 
   if (role === "teacher") {
@@ -231,12 +240,12 @@ function logout() {
   localStorage.removeItem("name");
   localStorage.removeItem("role");
   localStorage.removeItem("username"); // if you also store username
-  
+
   // Disconnect socket
   if (socket) {
     socket.disconnect();
   }
-  
+
   // Redirect to login page
   window.location.href = "/"; // or wherever your login page is
 }

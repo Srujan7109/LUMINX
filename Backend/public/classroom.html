@@ -6,15 +6,32 @@
     <title>Virtual Classroom - Edunexus</title>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/yjs@13.6.8/dist/yjs.js"></script>
 
     <link rel="stylesheet" href="/css/style.css" />
   </head>
   <body>
     <div class="container">
-      <div id="status" class="status disconnected">Connecting...</div>
+      <div id="status" class="status disconnected">Disconnected</div>
+      <!--
+      <div id="joinForm" class="header">
+        <h1>🎓 Virtual Classroom for Rural Areas</h1>
+        <p style="margin: 10px 0; color: #666">Edunexus Prototype</p>
+        <div class="join-form">
+          <input
+            type="text"
+            id="nameInput"
+            placeholder="Enter your name"
+            required
+          />
+          <select id="roleSelect">
+            <option value="student">Student</option>
+            <option value="teacher">Teacher</option>
+          </select>
+          <button onclick="joinClassroom()">Join Classroom</button>
+        </div>
+      </div>-->
 
-      <div id="classroom" class="classroom" style="display: none">
+      <div id="classroom" class="classroom">
         <div class="main-content">
           <div class="slide-area" id="slideArea">
             <div id="noSlideMessage">
@@ -28,8 +45,10 @@
               alt="Current Slide"
               loading="lazy"
             />
+
             <div id="whiteboardContainer" class="whiteboard-container hidden">
               <canvas id="whiteboardCanvas" class="whiteboard-canvas"></canvas>
+
               <div id="whiteboardControls" class="whiteboard-controls hidden">
                 <div
                   id="brushTool"
@@ -65,6 +84,7 @@
                   🗑️
                 </div>
               </div>
+
               <div id="whiteboardStatus" class="whiteboard-status">
                 <span
                   id="syncIndicator"
@@ -74,10 +94,12 @@
               </div>
             </div>
           </div>
+
           <div class="slide-controls">
             <div class="slide-info">
               <span id="slideInfo">Slide 0 of 0</span>
             </div>
+
             <div id="teacherControls" class="teacher-controls">
               <input
                 id="slideUpload"
@@ -92,6 +114,7 @@
                 style="display: none"
                 onchange="handleResourceUpload(event)"
               />
+
               <button class="upload-btn" onclick="triggerFileUpload()">
                 📤 Upload Slide
               </button>
@@ -103,6 +126,7 @@
                 📦 Upload Resource
               </button>
             </div>
+
             <div class="whiteboard-toggle-container">
               <button
                 id="whiteboardToggle"
@@ -113,6 +137,7 @@
               </button>
             </div>
           </div>
+
           <div class="audio-controls">
             <button
               id="startAudioBtn"
@@ -133,11 +158,13 @@
             </div>
           </div>
         </div>
+
         <div class="sidebar">
           <div class="participants">
             <h3>👥 Participants (<span id="participantCount">0</span>)</h3>
             <div id="participantsList"></div>
           </div>
+
           <div class="chat">
             <h3>💬 Chat</h3>
             <div id="chatMessages" class="chat-messages"></div>
@@ -150,6 +177,7 @@
               <button onclick="sendMessage()">Send</button>
             </div>
           </div>
+
           <div class="participants" style="margin-top: 16px">
             <h3>📚 Resources</h3>
             <div id="resourcesList"></div>
@@ -158,16 +186,16 @@
       </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/yjs@13.6.8/dist/yjs.js"></script>
     <script src="/js/whiteboard.js"></script>
     <script src="/js/app.js"></script>
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
-        // 1. Get user details from localStorage
         const name = localStorage.getItem("name");
         const role = localStorage.getItem("role");
 
-        // 2. Fallback: If no details, redirect to login
         if (!name || !role) {
           alert("User info missing. Please login again.");
           window.location.href = "/";
@@ -176,10 +204,19 @@
 
         console.log(`Auto-joining classroom as ${name} (${role})`);
 
-        // 3. Auto-join using the correct function from app.js
-        if (typeof autoJoinClassroom === "function") {
-          autoJoinClassroom(name, role);
+        // Always show classroom
+        document.getElementById("classroom").style.display = "block";
+
+        // Update status
+        const statusEl = document.getElementById("status");
+        if (statusEl) {
+          statusEl.textContent = `Connected as: ${name} (${role})`;
+          statusEl.classList.remove("disconnected");
+          statusEl.classList.add("connected");
         }
+
+        // If you’re using socket.io
+        // socket.emit("join", { name, role });
       });
     </script>
   </body>
