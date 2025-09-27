@@ -139,63 +139,93 @@
 </div>
 
 <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const username = localStorage.getItem("username");
-    const name = localStorage.getItem("name");
-    const role = localStorage.getItem("role");
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const username = urlParams.get("username");
 
-    // 🔐 Check login
-    if (!username || !name || !role) {
-      alert("User info missing. Please login again.");
-      window.location.href = "/";
+    if (!username) {
+      alert("No user specified. Please login again.");
+      window.location.href = "/login.html";
       return;
     }
+
+    const response = await fetch(`http://localhost:3000/api/users/${username}`);
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      alert(errData.message || "User not found. Please login again.");
+      window.location.href = "/login.html";
+      return;
+    }
+
+    const data = await response.json();
 
     // ✅ Show user details
-    document.getElementById("welcome").innerText = `Welcome, ${name}`;
-    document.getElementById("roleInfo").innerText = `Role: ${role}`;
-  });
+    document.getElementById("welcome").innerText = `Welcome, ${data.fullName}`;
+    document.getElementById("roleInfo").innerText = `Role: ${data.role}`;
 
-  // 🚪 Logout
-  function logout() {
-    localStorage.clear();
-    window.location.href = "/";
+    // Optional: Role-based content
+    if (data.role === "teacher") {
+      // show teacher-specific elements
+    } else {
+      // show student-specific elements
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Server error. Please try again.");
+    window.location.href = "/login.html";
+  }
+});
+
+// 🎓 Join class → redirect to classroom.html
+async function joinClassroom() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const username = urlParams.get("username");
+  const joinBtn = document.getElementById("joinClassBtn");
+
+  if (!username) {
+    alert("User info missing. Please login again.");
+    window.location.href = "/login.html";
+    return;
   }
 
-  // 📅 Show selected date
-  function showSelectedDate() {
-    const date = document.getElementById("calendar").value;
-    document.getElementById("selectedDate").innerText = date || "None";
-  }
+  try {
+    const response = await fetch(`http://localhost:3000/api/users/${username}`);
 
-  // 🎓 Join class → redirect to classroom.html
-  function joinClassroom() {
-    const name = localStorage.getItem("name");
-    const role = localStorage.getItem("role");
-    const joinBtn = document.getElementById("joinClassBtn");
-
-    if (!name || !role) {
-      alert("User info missing. Please login again.");
-      window.location.href = "/";
+    if (!response.ok) {
+      // Attempt to get error message from response
+      const errData = await response.json().catch(() => ({}));
+      alert(errData.message || "User not found. Please login again.");
+      window.location.href = "/login.html";
       return;
     }
 
-    // Add loading animation
+    const data = await response.json();
+
     joinBtn.classList.add("joining");
     joinBtn.querySelector(".join-text").innerText = "Joining...";
 
-    // 🔑 Store only what's needed for classroom
-    localStorage.setItem("name", name);
-    localStorage.setItem("role", role);
+    console.log(`Redirecting to classroom as ${data.fullName} (${data.role})`);
 
-    console.log(`Redirecting to classroom as ${name} (${role})`);
-
-    // Delay so user sees spinner
     setTimeout(() => {
-      window.location.href = "/classroom";
+      window.location.href = `/classroom?username=${username}`;
     }, 600);
+
+  } catch (err) {
+    console.error(err);
+    alert("Server error. Please try again.");
+    window.location.href = "/login.html";
   }
+}
+
+
+function logout() {
+  window.location.href = "/login.html";
+}
 </script>
+
 
 
 </body>

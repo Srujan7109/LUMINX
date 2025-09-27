@@ -32,11 +32,14 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         images = await convertPdfToImages(pdfPath, outDir, io, id);
         if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
       } else if ([".png", ".jpg", ".jpeg"].includes(ext)) {
-        const outPath = path.join(outDir, `slide-1.jpg`);
-        await sharp(file.path).resize(1280, null, { withoutEnlargement: true }).jpeg({ quality: 60, mozjpeg: true, progressive: true }).toFile(outPath);
+        const outPath = path.join(outDir, `slide-1.webp`);
+        await sharp(file.path)
+          .resize(1024, 768, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 75, effort: 4 })
+          .toFile(outPath);
         io.emit("total-slides", { classroomId: id, totalSlides: 1 });
-        io.emit("slide-ready", { classroomId: id, url: `/slides/${id}/slide-1.jpg`, index: 0 });
-        images = [{ url: `/slides/${id}/slide-1.jpg`, name: "slide-1.jpg", index: 0 }];
+        io.emit("slide-ready", { classroomId: id, url: `/slides/${id}/slide-1.webp`, index: 0 });
+        images = [{ url: `/slides/${id}/slide-1.webp`, name: "slide-1.webp", index: 0 }];
       } else {
         throw new Error(`Unsupported file type: ${ext}`);
       }

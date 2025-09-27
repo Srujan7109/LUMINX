@@ -55,7 +55,9 @@ app.use((req, res, next) => {
 });
 
 // Error handling middleware (add at the end)
-
+app.get("/api/users/", (req, res) => {
+  res.send("Home Page");
+});
 
 // Static file serving
 app.use("/slides", express.static(path.join(__dirname, "slides")));
@@ -66,9 +68,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/users", userRoutes);
 
 // Routes
-app.get("/", (req, res) => {
-  res.send("Home Page");
-});
+
 
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "../Frontend/login.html"));
@@ -442,6 +442,8 @@ function clearSlidesDirectory() {
     fs.mkdirSync(slidesDir); // Recreate the directory
   }
 }
+
+
 
 io.on("connection", (socket) => {
   console.log(`New client connected: ${socket.id}`);

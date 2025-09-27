@@ -513,3 +513,24 @@ body {
     flex-direction: column;
   }
 }
+
+/* Loading states for better UX */
+#currentSlide.loading {
+  opacity: 0.7;
+  filter: blur(1px);
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+#currentSlide.loading::after {
+  content: "Loading...";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-size: 14px;
+  z-index: 10;
+}

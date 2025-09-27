@@ -19,10 +19,11 @@ const app = express();
 app.use(express.json());
 const server = http.createServer(app);
 
-// Static
+// Static file serving
 app.use("/api/users", userRoutes);
 app.use("/slides", express.static(path.join(__dirname, "..", "slides")));
 app.use("/resources", express.static(path.join(__dirname, "..", "resources")));
+// Serve static files from Backend public folder
 app.use(express.static(path.join(__dirname, "..", "public")));
 // Serve service worker from backend path to root scope
 app.get("/sw.js", async (req, res) => {

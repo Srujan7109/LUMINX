@@ -1,9 +1,31 @@
-// This script assumes 'socket' and 'currentUser' are available in the global scope.
+// This script assumes 'socket' and 'window.userRole' are available in the global scope.
 // It also depends on Yjs and idb libraries being loaded if available.
 
 // =============================================================================
 // Whiteboard Functionality
 // =============================================================================
+
+// Helper function to check if user is teacher (robust version)
+function isTeacherRobust() {
+  // Check multiple sources for role information
+  const sources = [
+    window.userRole,
+    window.localStorage?.getItem?.('role'),
+    document.body?.classList?.contains?.('teacher') ? 'teacher' : null
+  ];
+  
+  console.log("Whiteboard role check from multiple sources:", sources);
+  
+  for (const role of sources) {
+    if (role && role.toString().trim().toLowerCase() === "teacher") {
+      console.log("✅ Teacher role confirmed for whiteboard from source:", role);
+      return true;
+    }
+  }
+  
+  console.log("❌ No teacher role found for whiteboard in any source");
+  return false;
+}
 
 // Whiteboard state
 let whiteboardActive = false;
@@ -18,9 +40,7 @@ let lastY = 0;
 let whiteboardMode = "off"; // New state: 'off', 'board', or 'overlay'
 
 // Yjs document for collaborative editing
-// UMD exposes Y globally
-const ydoc = new Y.Doc();
-
+let ydoc = null;
 let ymap = null;
 let isSyncing = false;
 
@@ -112,7 +132,7 @@ function initializeYjs() {
 
   // Listen for document updates to sync with server
   ydoc.on("update", (update) => {
-    if (socket && currentUser?.role === "teacher") {
+    if (socket && window.userRole === "teacher") {
       socket.emit("whiteboard-update", {
         update: Array.from(update),
         timestamp: Date.now(),
@@ -229,7 +249,10 @@ function handleTouch(e) {
 
 // Start drawing
 function startDrawing(e) {
-  if (currentUser?.role !== "teacher") return;
+  if (!isTeacherRobust()) {
+    console.log("Drawing access denied - not a teacher");
+    return;
+  }
   isDrawing = true;
   const rect = whiteboardCanvas.getBoundingClientRect();
   lastX = e.clientX - rect.left;
@@ -239,7 +262,7 @@ function startDrawing(e) {
 // --- ERASER FIX: This function is updated to handle erasing in real-time ---
 // Draw
 function draw(e) {
-  if (!isDrawing || currentUser?.role !== "teacher") return;
+  if (!isDrawing || !isTeacherRobust()) return;
 
   const rect = whiteboardCanvas.getBoundingClientRect();
   const currentX = e.clientX - rect.left;
@@ -333,7 +356,10 @@ function setSize(size) {
 }
 
 function clearWhiteboard() {
-  if (currentUser?.role !== "teacher") return;
+  if (!isTeacherRobust()) {
+    console.log("Clear whiteboard access denied - not a teacher");
+    return;
+  }
   // Use a custom modal or skip confirm if it causes issues in your environment
   if (confirm("Are you sure you want to clear the whiteboard?")) {
     clearCanvas();
@@ -438,11 +464,13 @@ function applyWhiteboardMode() {
   }
 
   if (whiteboardActive) {
-    if (currentUser?.role === "teacher") {
+    if (isTeacherRobust()) {
       whiteboardControls.classList.remove("hidden");
       whiteboardCanvas.classList.remove("readonly");
+      console.log("Whiteboard controls enabled for teacher");
     } else {
       whiteboardCanvas.classList.add("readonly");
+      console.log("Whiteboard set to readonly mode for student");
     }
     setTimeout(resizeCanvas, 100);
     initializeAutoSave();
@@ -463,7 +491,7 @@ function updateSyncStatus(status) {
 }
 
 function handleWhiteboardUpdate(data) {
-  if (currentUser?.role === "teacher") return;
+  if (isTeacherRobust()) return;
   try {
     isSyncing = true;
     updateSyncStatus("syncing");
@@ -513,7 +541,7 @@ function handleWhiteboardToggle(data) {
 }
 
 function handleKeyboardShortcuts(e) {
-  if (!whiteboardActive || currentUser?.role !== "teacher") return;
+  if (!whiteboardActive || !isTeacherRobust()) return;
   if (e.ctrlKey && e.key === "z") {
     e.preventDefault();
     showNotification("Undo coming soon!");
@@ -544,3 +572,35 @@ function initializeAutoSave() {
     window.whiteboardAutoSaveInitialized = true;
   }
 }
+
+// Global debug function for whiteboard role validation
+window.debugWhiteboardRole = function() {
+  console.log("=== WHITEBOARD ROLE DEBUG (Backend) ===");
+  console.log("Window userRole:", window.userRole);
+  console.log("Window userName:", window.userName);
+  console.log("Window userJoined:", window.userJoined);
+  
+  console.log("Whiteboard role validation tests:");
+  console.log("- isTeacherRobust():", isTeacherRobust());
+  
+  console.log("Multiple role sources:");
+  console.log("- window.userRole:", window.userRole);
+  console.log("- localStorage role:", localStorage.getItem('role'));
+  console.log("- body class teacher:", document.body.classList.contains('teacher'));
+  
+  console.log("Whiteboard state:");
+  console.log("- whiteboardActive:", whiteboardActive);
+  console.log("- whiteboardMode:", whiteboardMode);
+  console.log("- whiteboardCanvas:", !!whiteboardCanvas);
+  
+  return {
+    userRole: window.userRole,
+    userName: window.userName,
+    userJoined: window.userJoined,
+    isTeacherRobust: isTeacherRobust(),
+    whiteboardActive: whiteboardActive,
+    whiteboardMode: whiteboardMode
+  };
+};
+
+window.toggleWhiteboard = toggleWhiteboard;
