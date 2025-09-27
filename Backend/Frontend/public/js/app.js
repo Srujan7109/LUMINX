@@ -204,7 +204,6 @@ function setupSocketEventHandlers() {
     hideProgressIndicator();
     showNotification(`All ${data.totalSlides} slides loaded successfully!`);
     if (slides[0] && currentSlideNumber === 0) {
-      console.log("Displaying first slide after upload complete");
       displaySlide(slides[0]);
       updateSlideInfo();
     }
@@ -234,12 +233,7 @@ function setupSocketEventHandlers() {
   socket.on("webrtc-answer", handleWebRTCAnswer);
   socket.on("webrtc-ice-candidate", handleWebRTCIceCandidate);
   socket.on("classroom-state", updateClassroomState);
-  socket.on("participants-updated", (participants) => {
-    console.log("=== SOCKET: PARTICIPANTS-UPDATED EVENT RECEIVED ===");
-    console.log("Received participants:", participants);
-    console.log("Event timestamp:", new Date().toISOString());
-    updateParticipantsList(participants);
-  });
+  socket.on("participants-updated", updateParticipantsList);
   socket.on("whiteboard-update", handleWhiteboardUpdate);
   socket.on("whiteboard-state", handleWhiteboardState);
   socket.on("whiteboard-clear", handleWhiteboardClear);
@@ -313,8 +307,6 @@ window.updateParticipantsList = function(participants) {
   console.log("=== UPDATE PARTICIPANTS LIST ===");
   console.log("Received participants:", participants);
   console.log("Participants count:", participants?.length || 0);
-  console.log("Participants type:", typeof participants);
-  console.log("Is array:", Array.isArray(participants));
   
   const listEl = document.getElementById("participantsList");
   const countEl = document.getElementById("participantCount");
@@ -323,15 +315,6 @@ window.updateParticipantsList = function(participants) {
     participantsList: !!listEl,
     participantCount: !!countEl
   });
-  
-  if (listEl) {
-    console.log("Participants list element details:");
-    console.log("  - innerHTML length:", listEl.innerHTML.length);
-    console.log("  - children count:", listEl.children.length);
-    console.log("  - classes:", listEl.className);
-    console.log("  - style display:", listEl.style.display);
-    console.log("  - computed display:", window.getComputedStyle(listEl).display);
-  }
   
   if (!participants || !Array.isArray(participants)) {
     console.warn("Invalid participants data:", participants);
@@ -353,15 +336,10 @@ window.updateParticipantsList = function(participants) {
     const div = document.createElement("div");
     div.className = `participant ${p.role}`;
     div.textContent = `${p.role === "teacher" ? "👨‍🏫" : "👨‍🎓"} ${p.name}`;
-    if (listEl) {
-      listEl.appendChild(div);
-      console.log(`Added participant div to list. List now has ${listEl.children.length} children`);
-    }
+    if (listEl) listEl.appendChild(div);
   });
   
   console.log("Participants list update completed");
-  console.log("Final participants list innerHTML:", listEl?.innerHTML);
-  console.log("Final participants list children count:", listEl?.children.length);
 }
 
 window.updateSlideInfo = function() {
@@ -372,66 +350,39 @@ window.updateSlideInfo = function() {
 }
 
 window.displaySlide = function (slideUrl) {
-  console.log("=== DISPLAY SLIDE FUNCTION CALLED ===");
-  console.log("Slide URL:", slideUrl);
-  console.log("Current slide number:", currentSlideNumber);
-  console.log("Total slides:", totalSlides);
-  
   const slideImg = document.getElementById("currentSlide");
   const noSlideMsg = document.getElementById("noSlideMessage");
   
-  console.log("DOM elements found:");
-  console.log("  - currentSlide element:", !!slideImg);
-  console.log("  - noSlideMessage element:", !!noSlideMsg);
-  
-  if (slideImg) {
-    console.log("  - currentSlide classes:", slideImg.className);
-    console.log("  - currentSlide style.display:", slideImg.style.display);
-    console.log("  - currentSlide src:", slideImg.src);
-  }
+  console.log("Displaying slide:", slideUrl, "at index:", currentSlideNumber);
   
   if (!slideUrl) {
-    console.log("No slide URL provided, hiding slide and showing message");
     if (slideImg) slideImg.classList.add("hidden");
     if (noSlideMsg) noSlideMsg.style.display = "block";
     return;
   }
   
   if (slideImg) {
-    console.log("Setting up slide image with URL:", slideUrl);
-    
-    // Immediately remove hidden class and show loading state
-    slideImg.classList.remove("hidden");
+    // Show loading state
     slideImg.classList.add("loading");
-    console.log("Removed hidden class and added loading class");
     
     slideImg.onload = () => {
-      console.log("✅ Slide loaded successfully:", slideUrl);
+      console.log("Slide loaded successfully:", slideUrl);
       slideImg.classList.remove("loading");
-      // Ensure hidden class is removed (in case it was added elsewhere)
       slideImg.classList.remove("hidden");
       if (noSlideMsg) noSlideMsg.style.display = "none";
-      console.log("Slide image is now visible");
-      console.log("Slide classes after load:", slideImg.className);
-      console.log("Slide display style after load:", slideImg.style.display);
       
       // Preload next 2 slides for better performance
       preloadNextSlides(currentSlideNumber + 1, 2);
     };
     
     slideImg.onerror = function () {
-      console.error("❌ Failed to load slide:", slideUrl);
-      console.error("Image error details:", this);
+      console.error("Failed to load slide:", slideUrl);
       this.classList.add("hidden");
       this.classList.remove("loading");
       if (noSlideMsg) noSlideMsg.style.display = "block";
     };
     
-    console.log("Setting slide image source to:", slideUrl);
     slideImg.src = slideUrl;
-    console.log("Slide image source set, waiting for load/error events");
-  } else {
-    console.error("❌ currentSlide element not found in DOM");
   }
 }
 
@@ -1624,293 +1575,4 @@ window.testUploadButtons = function() {
   }
   
   console.log("🔘 UPLOAD BUTTON TESTING COMPLETE 🔘");
-}
-
-// Function to manually test slide display
-window.testSlideDisplay = function() {
-  console.log("🧪 TESTING SLIDE DISPLAY 🧪");
-  
-  // Check if DOM elements exist
-  const slideImg = document.getElementById("currentSlide");
-  const noSlideMsg = document.getElementById("noSlideMessage");
-  
-  console.log("DOM elements:");
-  console.log("  - currentSlide:", !!slideImg);
-  console.log("  - noSlideMessage:", !!noSlideMsg);
-  
-  if (slideImg) {
-    console.log("  - currentSlide classes:", slideImg.className);
-    console.log("  - currentSlide src:", slideImg.src);
-    console.log("  - currentSlide style:", slideImg.style.cssText);
-  }
-  
-  // Check current state
-  console.log("Current state:");
-  console.log("  - currentSlideNumber:", currentSlideNumber);
-  console.log("  - totalSlides:", totalSlides);
-  console.log("  - slides array:", slides);
-  console.log("  - slides length:", slides?.length);
-  
-  // Test with a sample image
-  if (slideImg) {
-    console.log("Testing with sample image...");
-    const testUrl = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzMzMyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlRlc3QgSW1hZ2U8L3RleHQ+PC9zdmc+";
-    displaySlide(testUrl);
-  }
-  
-  console.log("🧪 SLIDE DISPLAY TEST COMPLETE 🧪");
-}
-
-// Function to force show current slide
-window.forceShowSlide = function() {
-  console.log("🔧 FORCE SHOW SLIDE 🔧");
-  
-  const slideImg = document.getElementById("currentSlide");
-  const noSlideMsg = document.getElementById("noSlideMessage");
-  
-  if (slideImg) {
-    console.log("Before force show:");
-    console.log("  - Classes:", slideImg.className);
-    console.log("  - Style display:", slideImg.style.display);
-    console.log("  - Computed display:", window.getComputedStyle(slideImg).display);
-    console.log("  - Computed visibility:", window.getComputedStyle(slideImg).visibility);
-    
-    // Force remove hidden class and show
-    slideImg.classList.remove("hidden");
-    slideImg.classList.remove("loading");
-    slideImg.style.display = "block";
-    slideImg.style.visibility = "visible";
-    
-    if (noSlideMsg) {
-      noSlideMsg.style.display = "none";
-    }
-    
-    console.log("After force show:");
-    console.log("  - Classes:", slideImg.className);
-    console.log("  - Style display:", slideImg.style.display);
-    console.log("  - Computed display:", window.getComputedStyle(slideImg).display);
-    console.log("  - Computed visibility:", window.getComputedStyle(slideImg).visibility);
-    
-    // If we have slides, show the current one
-    if (slides && slides.length > 0 && slides[currentSlideNumber]) {
-      console.log("Setting slide source to:", slides[currentSlideNumber]);
-      slideImg.src = slides[currentSlideNumber];
-    }
-  }
-  
-  console.log("🔧 FORCE SHOW SLIDE COMPLETE 🔧");
-}
-
-// Function to manually test participants list
-window.testParticipantsManually = function() {
-  console.log("🧪 TESTING PARTICIPANTS MANUALLY 🧪");
-  
-  // Test with sample data
-  const testParticipants = [
-    { name: "Test Teacher", role: "teacher" },
-    { name: "Test Student", role: "student" }
-  ];
-  
-  console.log("Calling updateParticipantsList with test data...");
-  updateParticipantsList(testParticipants);
-  
-  // Check if the elements are visible
-  const listEl = document.getElementById("participantsList");
-  const countEl = document.getElementById("participantCount");
-  
-  if (listEl) {
-    console.log("Participants list visibility check:");
-    console.log("  - Element exists:", !!listEl);
-    console.log("  - Children count:", listEl.children.length);
-    console.log("  - innerHTML:", listEl.innerHTML);
-    console.log("  - Computed display:", window.getComputedStyle(listEl).display);
-    console.log("  - Computed visibility:", window.getComputedStyle(listEl).visibility);
-    console.log("  - Computed opacity:", window.getComputedStyle(listEl).opacity);
-  }
-  
-  if (countEl) {
-    console.log("Participant count element:");
-    console.log("  - Text content:", countEl.textContent);
-    console.log("  - Computed display:", window.getComputedStyle(countEl).display);
-  }
-  
-  console.log("🧪 PARTICIPANTS MANUAL TEST COMPLETE 🧪");
-}
-
-// Function to check if server is emitting participants events
-window.checkParticipantsEvents = function() {
-  console.log("🔍 CHECKING PARTICIPANTS EVENTS 🔍");
-  
-  if (!socket) {
-    console.error("No socket available");
-    return;
-  }
-  
-  console.log("Socket status:", {
-    connected: socket.connected,
-    id: socket.id
-  });
-  
-  // Listen for any participants-related events
-  const originalHandler = socket.listeners('participants-updated')[0];
-  console.log("Original participants-updated handler:", !!originalHandler);
-  
-  // Add a temporary listener to catch any events
-  const tempHandler = (data) => {
-    console.log("🔥 CAUGHT PARTICIPANTS EVENT:", data);
-  };
-  
-  socket.on('participants-updated', tempHandler);
-  console.log("Added temporary event listener");
-  
-  // Try to request participants from server
-  console.log("Requesting participants from server...");
-  socket.emit('get-participants');
-  
-  // Also try classroom state
-  console.log("Requesting classroom state from server...");
-  socket.emit('get-classroom-state');
-  
-  // Remove temp handler after 5 seconds
-  setTimeout(() => {
-    socket.off('participants-updated', tempHandler);
-    console.log("Removed temporary event listener");
-  }, 5000);
-  
-  console.log("🔍 PARTICIPANTS EVENTS CHECK COMPLETE 🔍");
-}
-
-// Function to test server connection and participants
-window.testServerConnection = function() {
-  console.log("🌐 TESTING SERVER CONNECTION 🌐");
-  
-  if (!socket) {
-    console.error("No socket available");
-    return;
-  }
-  
-  console.log("Socket status:", {
-    connected: socket.connected,
-    id: socket.id
-  });
-  
-  // Test if we can emit events
-  console.log("Testing server communication...");
-  
-  // Test get-participants
-  socket.emit('get-participants');
-  console.log("Emitted get-participants event");
-  
-  // Test get-classroom-state
-  socket.emit('get-classroom-state');
-  console.log("Emitted get-classroom-state event");
-  
-  // Test join-classroom (if not already joined)
-  if (!window.userJoined) {
-    console.log("Attempting to join classroom...");
-    socket.emit('join-classroom', { username: window.currentUsername || 'test' });
-  } else {
-    console.log("Already joined classroom, skipping join-classroom test");
-  }
-  
-  console.log("🌐 SERVER CONNECTION TEST COMPLETE 🌐");
-}
-
-// Function to manually trigger participants broadcast from server
-window.broadcastParticipants = function() {
-  console.log("📢 BROADCASTING PARTICIPANTS 📢");
-  
-  if (!socket) {
-    console.error("No socket available");
-    return;
-  }
-  
-  console.log("Emitting broadcast-participants event to server...");
-  socket.emit('broadcast-participants');
-  console.log("📢 BROADCAST REQUEST SENT 📢");
-}
-
-// Function to monitor participants events
-window.monitorParticipantsEvents = function() {
-  console.log("👀 MONITORING PARTICIPANTS EVENTS 👀");
-  
-  if (!socket) {
-    console.error("No socket available");
-    return;
-  }
-  
-  // Add a temporary listener to catch all participants events
-  const originalHandler = socket.listeners('participants-updated')[0];
-  console.log("Original participants-updated handler:", !!originalHandler);
-  
-  // Add monitoring listener
-  const monitorHandler = (participants) => {
-    console.log("🔥 PARTICIPANTS EVENT RECEIVED:", participants);
-    console.log("Event timestamp:", new Date().toISOString());
-    console.log("Participants count:", participants?.length || 0);
-  };
-  
-  socket.on('participants-updated', monitorHandler);
-  console.log("Added monitoring listener");
-  
-  // Remove after 30 seconds
-  setTimeout(() => {
-    socket.off('participants-updated', monitorHandler);
-    console.log("Removed monitoring listener");
-  }, 30000);
-  
-  console.log("👀 MONITORING ACTIVE FOR 30 SECONDS 👀");
-}
-
-// Progress indicator functions
-window.showProgressIndicator = function(message) {
-  console.log("Showing progress indicator:", message);
-  
-  // Create progress indicator if it doesn't exist
-  let progressIndicator = document.getElementById("progressIndicator");
-  if (!progressIndicator) {
-    progressIndicator = document.createElement("div");
-    progressIndicator.id = "progressIndicator";
-    progressIndicator.className = "progress-indicator";
-    progressIndicator.innerHTML = `
-      <div class="progress-content">
-        <div class="progress-message">${message}</div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: 0%"></div>
-        </div>
-        <div class="progress-percentage">0%</div>
-      </div>
-    `;
-    document.body.appendChild(progressIndicator);
-  } else {
-    // Update existing indicator
-    const messageEl = progressIndicator.querySelector('.progress-message');
-    if (messageEl) messageEl.textContent = message;
-  }
-  
-  progressIndicator.style.display = 'flex';
-}
-
-window.updateProgressIndicator = function(percentage, message) {
-  console.log("Updating progress indicator:", percentage + "%", message);
-  
-  const progressIndicator = document.getElementById("progressIndicator");
-  if (!progressIndicator) return;
-  
-  const fillEl = progressIndicator.querySelector('.progress-fill');
-  const percentageEl = progressIndicator.querySelector('.progress-percentage');
-  const messageEl = progressIndicator.querySelector('.progress-message');
-  
-  if (fillEl) fillEl.style.width = percentage + '%';
-  if (percentageEl) percentageEl.textContent = percentage + '%';
-  if (messageEl && message) messageEl.textContent = message;
-}
-
-window.hideProgressIndicator = function() {
-  console.log("Hiding progress indicator");
-  
-  const progressIndicator = document.getElementById("progressIndicator");
-  if (progressIndicator) {
-    progressIndicator.style.display = 'none';
-  }
 }
