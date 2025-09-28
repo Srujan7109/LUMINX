@@ -13,7 +13,7 @@ const User = require("./src/models/User");
 const userRoutes = require("./src/routes/userRoutes");
 require('dotenv').config();
 const connectedClients = new Map();
-const chatbotRouter = require("./chatbot.js");
+const chatbotRouter = require("./src/routes/chatbot.js");
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))

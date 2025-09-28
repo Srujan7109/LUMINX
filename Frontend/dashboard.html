@@ -221,7 +221,7 @@
       <a href="#"
         ><span class="icon">👤</span><span class="text">Profile</span></a
       >
-      <a href="ai-help.html"
+      <a href="#", id="aiHelpLink"
         ><span class="icon">🤖</span><span class="text">AI Help</span></a
       >
       <a href="progress_tracker.html"
@@ -299,25 +299,30 @@
       }
 
       document.addEventListener("DOMContentLoaded", async () => {
-        const username = new URLSearchParams(window.location.search).get(
-          "username"
-        );
-        if (!username) return (window.location.href = "/login.html");
+    const username = new URLSearchParams(window.location.search).get(
+       "username"
+      );
+      if (!username) return (window.location.href = "/login.html");
 
-        try {
-          const response = await fetch(
-            `http://localhost:3000/api/users/${username}`
-          );
-          if (!response.ok) throw new Error("User not found");
-          const data = await response.json();
-          document.getElementById(
-            "welcome"
-          ).innerText = `Welcome, ${data.fullName}`;
-          document.getElementById("roleInfo").innerText = `Role: ${data.role}`;
-        } catch {
-          window.location.href = "/login.html";
-        }
-      });
+  // Set AI Help link with username
+      document.getElementById("aiHelpLink").href = `ai-help.html?username=${username}`;
+
+     try {
+     const response = await fetch(
+      `http://localhost:3000/api/users/${username}`
+      );
+      if (!response.ok) throw new Error("User not found");
+      const data = await response.json();
+      document.getElementById(
+      "welcome"
+      ).innerText = `Welcome, ${data.fullName}`;
+      document.getElementById("roleInfo").innerText = `Role: ${data.role}`;
+    } catch {
+    window.location.href = "/login.html";
+  }
+});
+
+
     </script>
   </body>
 </html>
