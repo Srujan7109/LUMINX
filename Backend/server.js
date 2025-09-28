@@ -13,6 +13,7 @@ const User = require("./src/models/User");
 const userRoutes = require("./src/routes/userRoutes");
 require('dotenv').config();
 const connectedClients = new Map();
+const chatbotRouter = require("./chatbot.js");
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
@@ -97,6 +98,10 @@ app.get("/slides/:id/:filename", (req, res) => {
   }
 });
 
+// API Routes - MUST come after body parsing middleware
+app.use("/api/users", userRoutes);
+ //chatbot route 
+app.use("/api/chat", chatbotRouter);
 
 
 // Rest of your server code (classroom state, socket handlers, etc.)
