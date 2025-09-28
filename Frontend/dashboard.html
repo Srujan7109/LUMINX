@@ -1,232 +1,323 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <style>
-    body {
-      background: #f5f7fb;
-      font-family: 'Segoe UI', sans-serif;
-    }
-    .sidebar {
-      height: 100vh;
-      background: linear-gradient(to bottom, #4facfe, #00f2fe);
-      padding: 20px;
-      color: white;
-      position: fixed;
-      width: 220px;
-    }
-    .sidebar h4 {
-      margin-bottom: 30px;
-      font-weight: bold;
-    }
-    .sidebar a {
-      display: block;
-      padding: 10px;
-      color: white;
-      text-decoration: none;
-      margin: 5px 0;
-      border-radius: 6px;
-    }
-    .sidebar a:hover {
-      background: rgba(255,255,255,0.2);
-    }
-    .main-content {
-      margin-left: 240px;
-      padding: 20px;
-    }
-    .subject-card {
-      background: #b2f0e8;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    .subject-card:hover {
-      transform: scale(1.05);
-      background: #9ae3d7;
-    }
-    .join-class {
-      background: linear-gradient(to right, #4facfe, #00f2fe);
-      color: white;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      font-weight: bold;
-      cursor: pointer;
-      transition: 0.3s;
-      position: relative;
-    }
-    .join-class:hover {
-      transform: scale(1.05);
-      opacity: 0.9;
-    }
-    .join-class.joining {
-      opacity: 0.7;
-      pointer-events: none;
-    }
-    .join-class .loading-spinner {
-      display: none;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 20px;
-      height: 20px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top: 2px solid white;
-      animation: spin 1s linear infinite;
-    }
-    .join-class.joining .loading-spinner {
-      display: block;
-    }
-    .join-class.joining .join-text {
-      opacity: 0.3;
-    }
-    @keyframes spin {
-      0% { transform: translate(-50%, -50%) rotate(0deg); }
-      100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background: #f4f6f9;
+        font-family: "Inter", sans-serif;
+        color: #333;
+      }
 
-<!-- Sidebar -->
-<div class="sidebar">
-  <h4>📘 Luminex</h4>
-  <a href="#">Home</a>
-  <a href="#">Offline Materials</a>
-  <a href="#">Assignments</a>
-  <a href="#">Quizzes / Puzzles</a>
-  <a href="#">Profile</a>
-  <a href="#">AI Help</a>
-  <button class="btn btn-danger mt-4 w-100" onclick="logout()">Logout</button>
-</div>
+      /* Sidebar */
+      .sidebar {
+        height: 100vh;
+        background: #4aa0f7; /* professional light blue */
+        padding: 25px 20px;
+        color: white;
+        position: fixed;
+        width: 220px;
+        box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+        transition: width 0.3s ease;
+      }
+      .sidebar h4 {
+        font-weight: 700;
+        font-size: 22px;
+        margin-bottom: 35px;
+        transition: opacity 0.3s ease;
+      }
+      .sidebar a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 15px;
+        color: white;
+        text-decoration: none;
+        margin: 8px 0;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+      .sidebar a:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .sidebar .btn-danger {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+      .sidebar .btn-danger:hover {
+        background-color: #d43f3a;
+      }
+      .sidebar .icon {
+        font-size: 20px;
+        display: inline-block;
+        width: 24px;
+        text-align: center;
+      }
+      .sidebar .text {
+        white-space: nowrap;
+        transition: opacity 0.3s ease;
+      }
 
-<!-- Main Dashboard -->
-<div class="main-content">
-  <h2 id="welcome"></h2>
-  <p id="roleInfo"></p>
+      /* Collapsed Sidebar */
+      .sidebar.collapsed {
+        width: 60px;
+        padding: 25px 10px;
+      }
+      .sidebar.collapsed h4 {
+        opacity: 0;
+        font-size: 0;
+      }
+      .sidebar.collapsed a .text {
+        opacity: 0;
+        width: 0;
+        overflow: hidden;
+      }
 
-  <!-- Calendar -->
-  <div class="card shadow p-3 mb-4">
-    <div class="card-body">
-      <h5 class="card-title">Calendar</h5>
-      <input type="date" class="form-control w-25" id="calendar" onchange="showSelectedDate()">
-      <p class="mt-2">Selected Date: <span id="selectedDate">None</span></p>
+      .sidebar.collapsed .btn-danger {
+        width: 50px;
+        padding: 10px;
+        font-size: 0;
+      }
+      .sidebar.collapsed .btn-danger::before {
+        content: "⎋"; /* logout icon */
+        font-size: 20px;
+        color: white;
+      }
+      /* Toggle Button */
+      .toggle-btn {
+        position: absolute;
+        top: 20px;
+        right: -15px;
+        background: #34495e;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.3s ease;
+      }
+      .toggle-btn:hover {
+        background: #2c3e50;
+      }
+
+      /* Main content */
+      .main-content {
+        margin-left: 240px;
+        padding: 30px 40px;
+        transition: margin-left 0.3s ease;
+      }
+      .sidebar.collapsed ~ .main-content {
+        margin-left: 70px;
+      }
+
+      /* Calendar card */
+      .card {
+        border-radius: 15px;
+        border: none;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        padding: 25px;
+      }
+      .card-title {
+        font-weight: 600;
+        font-size: 18px;
+        margin-bottom: 15px;
+      }
+
+      /* Subjects Grid */
+      .row.g-3 {
+        margin-top: 25px;
+      }
+      .subject-card,
+      .join-class {
+        border-radius: 15px;
+        padding: 30px 20px;
+        text-align: center;
+        font-weight: 600;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.35s ease;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      }
+
+      .subject-card {
+        background: linear-gradient(145deg, #e0f7fa, #b2ebf2);
+        color: #006064;
+      }
+      .subject-card:hover {
+        transform: translateY(-5px) scale(1.05);
+        background: linear-gradient(145deg, #b2ebf2, #80deea);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+      }
+
+      .join-class {
+        background: linear-gradient(135deg, #4facfe, #00f2fe);
+        color: white;
+        position: relative;
+      }
+      .join-class:hover {
+        transform: translateY(-5px) scale(1.05);
+        opacity: 0.95;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      }
+
+      .join-class .loading-spinner {
+        display: none;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 22px;
+        height: 22px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 3px solid white;
+        animation: spin 1s linear infinite;
+      }
+      .join-class.joining .loading-spinner {
+        display: block;
+      }
+      .join-class.joining .join-text {
+        opacity: 0.3;
+      }
+      @keyframes spin {
+        0% {
+          transform: translate(-50%, -50%) rotate(0deg);
+        }
+        100% {
+          transform: translate(-50%, -50%) rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <button class="toggle-btn" id="toggleBtn">⮜</button>
+      <h4>📘 Luminex</h4>
+      <a href="#"><span class="icon">🏠</span><span class="text">Home</span></a>
+      <a href="#"
+        ><span class="icon">📁</span
+        ><span class="text">Offline Materials</span></a
+      >
+      <a href="#"
+        ><span class="icon">📝</span><span class="text">Assignments</span></a
+      >
+      <a href="#"
+        ><span class="icon">❓</span
+        ><span class="text">Quizzes / Puzzles</span></a
+      >
+      <a href="#"
+        ><span class="icon">👤</span><span class="text">Profile</span></a
+      >
+      <a href="#"
+        ><span class="icon">🤖</span><span class="text">AI Help</span></a
+      >
+      <a href="progress_tracker.html"
+        ><span class="icon">📈</span
+        ><span class="text">Progress Tracker</span></a
+      >
+      <button class="btn btn-danger mt-4 w-100" onclick="logout()">
+        Logout
+      </button>
     </div>
-  </div>
 
-  <!-- Subjects Grid -->
-  <div class="row g-3">
-    <div class="col-md-4"><div class="subject-card">Mathematics</div></div>
-    <div class="col-md-4"><div class="subject-card">Science</div></div>
-    <div class="col-md-4"><div class="subject-card">English</div></div>
-    <div class="col-md-4"><div class="subject-card">History</div></div>
-    <div class="col-md-4"><div class="subject-card">Computer Science</div></div>
-    <div class="col-md-4">
-      <div class="join-class" onclick="joinClassroom()" id="joinClassBtn">
-        <span class="join-text">+ Join Class</span>
-        <div class="loading-spinner"></div>
+    <!-- Main Dashboard -->
+    <div class="main-content">
+      <h2 id="welcome"></h2>
+      <p id="roleInfo"></p>
+
+      <!-- Calendar -->
+      <div class="card shadow p-3 mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Calendar</h5>
+          <input
+            type="date"
+            class="form-control w-25"
+            id="calendar"
+            onchange="showSelectedDate()"
+          />
+          <p class="mt-2">Selected Date: <span id="selectedDate">None</span></p>
+        </div>
+      </div>
+
+      <!-- Subjects Grid -->
+      <div class="row g-3">
+        <div class="col-md-4"><div class="subject-card">Mathematics</div></div>
+        <div class="col-md-4"><div class="subject-card">Science</div></div>
+        <div class="col-md-4"><div class="subject-card">English</div></div>
+        <div class="col-md-4"><div class="subject-card">History</div></div>
+        <div class="col-md-4">
+          <div class="subject-card">Computer Science</div>
+        </div>
+        <div class="col-md-4">
+          <div class="join-class" onclick="joinClassroom()" id="joinClassBtn">
+            <span class="join-text">+ Join Class</span>
+            <div class="loading-spinner"></div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<script>
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const username = urlParams.get("username");
+    <script>
+      const toggleBtn = document.getElementById("toggleBtn");
+      const sidebar = document.getElementById("sidebar");
 
-    if (!username) {
-      alert("No user specified. Please login again.");
-      window.location.href = "/login.html";
-      return;
-    }
+      toggleBtn.addEventListener("click", () => {
+        sidebar.classList.toggle("collapsed");
+        toggleBtn.innerHTML = sidebar.classList.contains("collapsed")
+          ? "⮞"
+          : "⮜";
+      });
 
-    const response = await fetch(`http://localhost:3000/api/users/${username}`);
+      async function joinClassroom() {
+        const username = new URLSearchParams(window.location.search).get(
+          "username"
+        );
+        const joinBtn = document.getElementById("joinClassBtn");
+        if (!username) return (window.location.href = "/login.html");
+        joinBtn.classList.add("joining");
+        joinBtn.querySelector(".join-text").innerText = "Joining...";
+        setTimeout(() => {
+          window.location.href = `/classroom?username=${username}`;
+        }, 600);
+      }
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      alert(errData.message || "User not found. Please login again.");
-      window.location.href = "/login.html";
-      return;
-    }
+      function logout() {
+        window.location.href = "/login.html";
+      }
 
-    const data = await response.json();
+      document.addEventListener("DOMContentLoaded", async () => {
+        const username = new URLSearchParams(window.location.search).get(
+          "username"
+        );
+        if (!username) return (window.location.href = "/login.html");
 
-    // ✅ Show user details
-    document.getElementById("welcome").innerText = `Welcome, ${data.fullName}`;
-    document.getElementById("roleInfo").innerText = `Role: ${data.role}`;
-
-    // Optional: Role-based content
-    if (data.role === "teacher") {
-      // show teacher-specific elements
-    } else {
-      // show student-specific elements
-    }
-
-  } catch (err) {
-    console.error(err);
-    alert("Server error. Please try again.");
-    window.location.href = "/login.html";
-  }
-});
-
-// 🎓 Join class → redirect to classroom.html
-async function joinClassroom() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const username = urlParams.get("username");
-  const joinBtn = document.getElementById("joinClassBtn");
-
-  if (!username) {
-    alert("User info missing. Please login again.");
-    window.location.href = "/login.html";
-    return;
-  }
-
-  try {
-    const response = await fetch(`http://localhost:3000/api/users/${username}`);
-
-    if (!response.ok) {
-      // Attempt to get error message from response
-      const errData = await response.json().catch(() => ({}));
-      alert(errData.message || "User not found. Please login again.");
-      window.location.href = "/login.html";
-      return;
-    }
-
-    const data = await response.json();
-
-    joinBtn.classList.add("joining");
-    joinBtn.querySelector(".join-text").innerText = "Joining...";
-
-    console.log(`Redirecting to classroom as ${data.fullName} (${data.role})`);
-
-    setTimeout(() => {
-      window.location.href = `/classroom?username=${username}`;
-    }, 600);
-
-  } catch (err) {
-    console.error(err);
-    alert("Server error. Please try again.");
-    window.location.href = "/login.html";
-  }
-}
-
-
-function logout() {
-  window.location.href = "/login.html";
-}
-</script>
-
-
-
-</body>
+        try {
+          const response = await fetch(
+            `http://localhost:3000/api/users/${username}`
+          );
+          if (!response.ok) throw new Error("User not found");
+          const data = await response.json();
+          document.getElementById(
+            "welcome"
+          ).innerText = `Welcome, ${data.fullName}`;
+          document.getElementById("roleInfo").innerText = `Role: ${data.role}`;
+        } catch {
+          window.location.href = "/login.html";
+        }
+      });
+    </script>
+  </body>
 </html>
