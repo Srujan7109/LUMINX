@@ -1,0 +1,28 @@
+.assignments-container { padding: 10px; }
+.assignments-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.subject-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.subject-tab { padding: 6px 10px; border: 1px solid #cfe2ff; color: #0d6efd; background: #e7f1ff; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.subject-tab.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+.assignment-card { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+.assignment-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.assignment-title { font-weight: 600; font-size: 16px; }
+.assignment-meta { color: #6c757d; font-size: 12px; margin-top: 2px; }
+.assignment-desc { margin-top: 8px; color: #444; }
+.assignment-actions { margin-top: 10px; }
+
+/* Modals */
+.assignments-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1050; padding: 20px; }
+.assignments-modal .modal-content { background: #fff; border-radius: 10px; max-width: 520px; margin: 40px auto; padding: 16px; }
+.assignments-modal .modal-header { display: flex; justify-content: space-between; align-items: center; }
+.assignments-modal .modal-body { margin-top: 10px; }
+.assignments-modal .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+.submission-row { display: flex; justify-content: space-between; align-items: flex-start; border: 1px solid #f0f0f0; padding: 10px; border-radius: 8px; margin-bottom: 8px; }
+.submission-row .left { display: flex; flex-direction: column; gap: 4px; }
+.submission-row .right { text-align: right; }
+.submission-row .grade { font-weight: 600; }
+.submission-row .feedback { color: #6c757d; font-size: 12px; }
+
+#teacherControlsAssignments { display: none; }
+
+
